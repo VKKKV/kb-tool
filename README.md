@@ -1,39 +1,228 @@
 # kb-tool
 
-统一知识库管理工具，替代散落在 skill references/ 里的 5+ 个 Python 脚本。
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-green.svg)](https://www.python.org/)
 
-## 安装
+Unified knowledge base management tool for wikilink-based knowledge graphs.
+
+## Features
+
+- **Broken Link Scanner** — Detect and report broken wikilinks across your knowledge base
+- **Orphan Analysis** — Find files with no incoming or outgoing links
+- **Graph Analysis** — Identify hub nodes, isolated islands, and missing pages
+- **Auto-Fix** — Automatically fix zero-link files and pipe character corruption
+- **README Sync** — Keep file counts in README.md up to date
+
+## Installation
+
+### Using uv (recommended)
+
+```bash
+cd ~/code/kb-tool
+uv pip install -e .
+```
+
+### Using pip
 
 ```bash
 cd ~/code/kb-tool
 pip install -e .
 ```
 
-## 命令
+### Development
 
-```
-kb stats              # 快速统计
-kb scan               # 扫描断链
-kb scan -o report.md  # 扫描并写报告
-kb scan --json        # JSON 输出
-kb orphan             # 分析孤立文件
-kb orphan --by-dir    # 按目录分组
-kb fix-zero           # 为零链接文件添加关联
-kb fix-zero --dry-run # 预览
-kb fix-pipe [file...] # 修复管道符污染
-kb sync               # 同步 README 文件计数
-kb graph              # 图谱分析 (全部)
-kb graph -m hubs      # 枢纽节点
-kb graph -m islands   # 孤岛检测
-kb graph -m wanted    # 被引用但不存在的页面
+```bash
+cd ~/code/kb-tool
+uv pip install -e ".[dev]"
 ```
 
-## 环境变量
+## Quick Start
 
-- `KB_ROOT`: 知识库根目录 (默认 `~/code/knowledge`)
+```bash
+# Set your knowledge base root (optional, defaults to ~/code/knowledge)
+export KB_ROOT=~/code/knowledge
 
-## 依赖
+# Quick stats
+kb stats
 
-- click: CLI 框架
-- networkx: 图算法
-- pyyaml: YAML frontmatter (预留)
+# Scan for broken links
+kb scan
+
+# Analyze orphan files
+kb orphan
+
+# Full graph analysis
+kb graph
+```
+
+## Commands
+
+### `kb stats` — Quick Statistics
+
+Display a quick overview of your knowledge base.
+
+```bash
+kb stats
+```
+
+**Output:**
+- Total MD files
+- Total directories
+- Total size
+- Recent modifications (7 days)
+
+### `kb scan` — Broken Link Scanner
+
+Scan for broken wikilinks across your knowledge base.
+
+```bash
+kb scan                  # Print report to stdout
+kb scan -o report.md     # Write report to file
+kb scan --json           # JSON output for automation
+```
+
+**Detection:**
+- Wikilinks pointing to non-existent files
+- Invalid wikilink syntax
+- Cross-reference integrity
+
+### `kb orphan` — Orphan Analysis
+
+Find files with no incoming or outgoing links.
+
+```bash
+kb orphan                # List all orphan files
+kb orphan --by-dir       # Group by directory
+kb orphan --json         # JSON output
+```
+
+**Categories:**
+- `connected` — Has both incoming and outgoing links
+- `only outgoing` — Only links to other files
+- `only incoming` — Only linked from other files
+- `zero both` — No links at all (true orphans)
+
+### `kb graph` — Graph Analysis
+
+Analyze the knowledge base link graph.
+
+```bash
+kb graph                 # Full analysis (all modes)
+kb graph -m hubs         # Hub nodes (most referenced)
+kb graph -m islands      # Isolated nodes (no connections)
+kb graph -m wanted       # Missing pages (referenced but don't exist)
+```
+
+**Metrics:**
+- **Hubs** — Files with the most incoming links (knowledge anchors)
+- **Islands** — Files with no connections (potential orphans)
+- **Wanted** — Pages referenced but not yet created
+
+### `kb fix-zero` — Fix Zero-Link Files
+
+Automatically add associations for files with no links.
+
+```bash
+kb fix-zero              # Apply fixes
+kb fix-zero --dry-run    # Preview changes without applying
+```
+
+### `kb fix-pipe` — Fix Pipe Corruption
+
+Fix wikilinks corrupted by pipe characters.
+
+```bash
+kb fix-pipe              # Fix all files
+kb fix-pipe file1.md file2.md  # Fix specific files
+```
+
+### `kb sync` — Sync README
+
+Update file counts in README.md.
+
+```bash
+kb sync                  # Update counts
+kb sync --dry-run        # Preview changes
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KB_ROOT` | Knowledge base root directory | `~/code/knowledge` |
+
+## Examples
+
+### Daily Maintenance Workflow
+
+```bash
+# Morning check
+kb stats
+kb scan --json | jq '.broken_count'
+
+# Weekly cleanup
+kb orphan --by-dir
+kb graph -m islands
+kb fix-zero --dry-run
+```
+
+### CI/CD Integration
+
+```yaml
+# .github/workflows/kb-check.yml
+name: Knowledge Base Check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e .
+      - run: kb scan --json | jq '.broken_count == 0'
+```
+
+### Automation with Cron
+
+```bash
+# Daily knowledge base health check
+0 2 * * * cd ~/code/knowledge && kb scan -o ~/reports/kb-scan-$(date +\%Y-\%m-\%d).md
+```
+
+## Architecture
+
+```
+kb-tool/
+├── kb/
+│   ├── __init__.py      # Package initialization
+│   ├── cli.py           # Click CLI entry point
+│   ├── core.py          # Core functionality
+│   ├── scanner.py       # Broken link detection
+│   ├── orphan.py        # Orphan file analysis
+│   ├── graph.py         # Graph algorithms (NetworkX)
+│   ├── sync.py          # README synchronization
+│   └── fixer.py         # Auto-fix utilities
+├── pyproject.toml       # Project configuration
+├── LICENSE              # AGPL-3.0
+└── README.md            # This file
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [NetworkX](https://networkx.org/) — Graph analysis library
+- [Click](https://click.palletsprojects.com/) — CLI framework
+- [uv](https://github.com/astral-sh/uv) — Fast Python package installer
