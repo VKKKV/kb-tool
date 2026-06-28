@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kb-tool"
+version = "0.1.0"
+description = "Unified knowledge base management tool"
+requires-python = ">=3.11"
+license = "AGPL-3.0-only"
+dependencies = [
+    "click>=8",
+    "networkx>=3",
+    "pyyaml>=6",
+]
+
+[project.scripts]
+kb = "kb.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kb*"]
