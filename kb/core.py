@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 # ── defaults ──────────────────────────────────────────────────────────
-DEFAULT_KB = Path(os.environ.get("KB_ROOT", "~/code/knowledge"))
+DEFAULT_KB = Path(os.environ.get("KB_ROOT", "~/code/knowledge")).expanduser()
 
 EXCLUDE_SCAN_PREFIXES = (
     "50-diary/",
