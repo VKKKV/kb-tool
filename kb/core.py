@@ -25,7 +25,7 @@ EXTERNAL_SCHEMES = (
 )
 
 PLACEHOLDER_RE = re.compile(
-    r"^(path|new_path|old_path|your-|example|todo|xxx|\$\{|\.+\..*|.*\*.*|.*<.*>.*)$",
+    r"^(path|local_path|url|new_path|old_path|your-|example|todo|xxx|\$|\$\{|\d+|\.+\..*|.*\*.*|.*<.*>.*)$",
     re.I,
 )
 
@@ -157,9 +157,10 @@ class FileIndex:
                     normalized + "/index.md",
                 ])
 
-        # Obsidian bare-name resolution for wikilinks
-        if kind == "wikilink" and "/" not in target and not target.endswith(".md"):
-            stem = target
+        # Obsidian resolves wikilinks by basename even when the old path no
+        # longer exists. This avoids false positives after KB restructuring.
+        if kind == "wikilink":
+            stem = Path(target).stem
             if stem in self._by_basename:
                 candidates.append(self._by_basename[stem])
             for fp in self._by_stem.get(stem, []):

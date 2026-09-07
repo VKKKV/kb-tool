@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import collections
 import json
+import re
 from pathlib import Path
 
 from .core import FileIndex, MD_LINK_RE, WIKI_RE, strip_code
@@ -54,7 +55,10 @@ def scan_broken_links(
 
         # wikilinks
         for m in WIKI_RE.finditer(text):
-            raw = m.group(1).split("|", 1)[0].strip().lstrip("!")
+            # An escaped pipe belongs to the target/alias text; only an
+            # unescaped pipe separates the target from its display alias.
+            raw = re.split(r"(?<!\\)\|", m.group(1), maxsplit=1)[0].strip().lstrip("!")
+            raw = raw.replace(r"\|", "|")
             token_count += 1
             cands = index.resolve_candidates(Path(rel), raw, "wikilink")
             tag = cands[0] if cands else ""
