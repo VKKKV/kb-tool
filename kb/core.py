@@ -25,7 +25,7 @@ EXTERNAL_SCHEMES = (
 )
 
 PLACEHOLDER_RE = re.compile(
-    r"^(path|local_path|url|new_path|old_path|your-|example|todo|xxx|\$|\$\{|\d+|\.+\..*|.*\*.*|.*<.*>.*)$",
+    r"^(path|local_path|url|new_path|old_path|your-|example|todo|xxx|\$.*|\d+|\.+\.*|.*\*.*|.*<.*>.*)$",
     re.I,
 )
 
@@ -36,14 +36,14 @@ SITE_PATH_PREFIXES = (
 )
 SITE_RELATIVE_PREFIXES = tuple(p.lstrip("/") for p in SITE_PATH_PREFIXES)
 
-MD_LINK_RE = re.compile(r"(?<!\!)\[([^\]\n]+)\]\(([^)\n]+)\)")
+MD_LINK_RE = re.compile(r"(?<!\!)\[([^\]\n]+)\]\((?:<([^>\n]+)>|([^)\n]+))\)")
 WIKI_RE = re.compile(r"(?<!`)\[\[([^\]\n]+)\]\]")
 
 
 # ── code stripping ────────────────────────────────────────────────────
 
 def strip_code(text: str) -> str:
-    """Remove fenced code blocks (``` / ~~~) from text, preserving line count."""
+    """Remove fenced code blocks (``` / ~~~) and inline code spans, preserving line count."""
     lines = []
     in_fence = False
     for line in text.splitlines():
@@ -52,7 +52,12 @@ def strip_code(text: str) -> str:
             in_fence = not in_fence
             lines.append("")
             continue
-        lines.append("" if in_fence else line)
+        if in_fence:
+            lines.append("")
+        else:
+            # Blank inline code spans so literal examples like `[$x]($style)`
+            # or `参见 [[doc]]` don't parse as links.
+            lines.append(re.sub(r"`[^`\n]+`", lambda m: " " * len(m.group(0)), line))
     return "\n".join(lines)
 
 

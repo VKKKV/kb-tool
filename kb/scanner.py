@@ -38,7 +38,8 @@ def scan_broken_links(
 
         # markdown links
         for m in MD_LINK_RE.finditer(text):
-            raw = m.group(2)
+            # group 2: angle-bracket form [text](<url>); group 3: plain form
+            raw = m.group(2) if m.group(2) is not None else m.group(3)
             token_count += 1
             cands = index.resolve_candidates(Path(rel), raw, "markdown")
             tag = cands[0] if cands else ""
@@ -67,6 +68,14 @@ def scan_broken_links(
             elif tag == "__placeholder__":
                 placeholder_count += 1
             elif not index.target_exists(cands):
+                # Some files escape the alias separator as \| (needed inside
+                # tables): [[target\|alias]]. Obsidian accepts this; retry
+                # resolution with the pre-pipe segment before flagging.
+                if "|" in raw:
+                    alt = raw.split("|", 1)[0].strip()
+                    alt_cands = index.resolve_candidates(Path(rel), alt, "wikilink")
+                    if index.target_exists(alt_cands):
+                        continue
                 broken[rel].append(("wikilink", raw))
 
     # ── stats ──
