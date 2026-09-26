@@ -6,6 +6,8 @@ Usage:
     kb fix-zero [--dry-run] [--limit 50]
     kb fix-pipe [file ...]
     kb sync [--dry-run] [--index-path ...]
+    kb convert-links [--dry-run] MAPPING INDEX
+    kb tidy-wechat [--dry-run] ARTICLES YEAR COVERAGE
     kb graph [--mode islands|hubs|wanted|communities|all] [--top 20] [--min-links 0] [--edges]
     kb stats
 """
@@ -90,6 +92,41 @@ def sync(ctx: click.Context, dry_run: bool, index_path: str | None):
     from .sync import cmd_sync
     idx = _index(ctx.obj["kb"])
     cmd_sync(idx, dry_run, index_path)
+
+
+@cli.command("convert-links")
+@click.argument("mapping", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("index", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--dry-run", is_flag=True, help="预览不修改")
+def convert_links(mapping: Path, index: Path, dry_run: bool):
+    """将日期 Markdown 链接按映射转换为 wikilinks。"""
+    from .migrations import convert_links as migrate_links, load_mapping
+
+    converted, missing = migrate_links(index, load_mapping(mapping), dry_run=dry_run)
+    prefix = "[DRY RUN] " if dry_run else ""
+    click.echo(f"{prefix}converted={converted} missing={missing}")
+    if missing:
+        raise click.exceptions.Exit(1)
+
+
+@cli.command("tidy-wechat")
+@click.argument("articles", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("year")
+@click.argument("coverage", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--dry-run", is_flag=True, help="预览不修改")
+def tidy_wechat(articles: Path, year: str, coverage: Path, dry_run: bool):
+    """整理指定年份的 WeChat Markdown 文章。"""
+    from .migrations import load_coverage, tidy_wechat as migrate_wechat
+
+    processed, changed, errors = migrate_wechat(
+        articles, year, load_coverage(coverage), dry_run=dry_run
+    )
+    prefix = "[DRY RUN] " if dry_run else ""
+    for path, error in errors:
+        click.echo(f"{path}: {error}")
+    click.echo(f"{prefix}processed={processed} changed={changed} errors={len(errors)}")
+    if errors:
+        raise click.exceptions.Exit(1)
 
 
 @cli.command()

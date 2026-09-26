@@ -16,7 +16,6 @@ keywords = ["knowledge-base", "wikilinks", "graph-analysis", "cli"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -45,6 +44,7 @@ Issues = "https://github.com/VKKKV/kb-tool/issues"
 
 [project.scripts]
 kb = "kb.cli:main"
+kb-tool = "kb.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kb*"]

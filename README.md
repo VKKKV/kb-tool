@@ -12,6 +12,7 @@ Unified knowledge base management tool for wikilink-based knowledge graphs.
 - **Graph Analysis** — Identify hub nodes, isolated islands, and missing pages
 - **Auto-Fix** — Automatically fix zero-link files and pipe character corruption
 - **README Sync** — Keep file counts in README.md up to date
+- **Markdown Migrations** — Convert dated links and normalize WeChat archive metadata
 
 ## Installation
 
@@ -145,6 +146,31 @@ kb sync                  # Update counts
 kb sync --dry-run        # Preview changes
 ```
 
+### `kb convert-links` — Convert dated Markdown links
+
+Convert matching dated Markdown links using an explicit tab-separated mapping.
+Unmapped links are left unchanged and produce a non-zero exit status.
+
+```bash
+kb convert-links mapping.tsv index.md
+kb convert-links --dry-run mapping.tsv index.md
+```
+
+### `kb tidy-wechat` — Normalize WeChat archive articles
+
+Normalize the frontmatter and backlink of Markdown articles in one explicit
+year directory. The coverage file is JSON and is keyed by paths such as
+`articles/2026/article.md`.
+
+```bash
+kb tidy-wechat articles/2026 2026 coverage.json
+kb tidy-wechat --dry-run articles/2026 2026 coverage.json
+```
+
+Both migration commands operate only on the paths supplied by the caller and
+do not discover a checkout or access the network. They replace the historical
+`ctf-tool/script/kb-tools` scripts.
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -203,6 +229,7 @@ kb-tool/
 │   ├── orphan.py        # Orphan file analysis
 │   ├── graph.py         # Graph algorithms (NetworkX)
 │   ├── sync.py          # README synchronization
+│   ├── migrations.py    # Explicit-path Markdown migrations
 │   └── fixer.py         # Auto-fix utilities
 ├── pyproject.toml       # Project configuration
 ├── LICENSE              # AGPL-3.0
