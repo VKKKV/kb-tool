@@ -30,15 +30,6 @@ class GroupSuggestion(TypedDict):
     paths: list[str]
 
 
-class GroupReport(TypedDict):
-    """Structured metadata and rows for a graph-groups JSON report."""
-
-    theme: str
-    limit: int
-    min_count: int
-    groups: list[GroupSuggestion]
-
-
 def _obsidian_query(kind: str, value: str) -> str:
     if kind == "tag":
         return f"tag:#{value}"

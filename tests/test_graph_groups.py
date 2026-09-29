@@ -49,7 +49,7 @@ def test_group_metadata_and_min_count(tmp_path: Path) -> None:
     assert all(row["count"] >= 2 for row in rows)
 
 
-def test_graph_groups_cli_json_includes_report_metadata(tmp_path: Path) -> None:
+def test_graph_groups_cli_json_remains_a_top_level_array(tmp_path: Path) -> None:
     (tmp_path / "a.md").write_text("---\ntags: linux\n---\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
@@ -63,12 +63,10 @@ def test_graph_groups_cli_json_includes_report_metadata(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    report = json.loads(result.output)
-    assert report["theme"] == "nord"
-    assert report["limit"] == 7
-    assert report["min_count"] == 1
-    assert isinstance(report["groups"], list)
-    tag = next(row for row in report["groups"] if row["name"] == "tag:linux")
+    rows = json.loads(result.output)
+    assert isinstance(rows, list)
+    assert len(rows) <= 7
+    tag = next(row for row in rows if row["name"] == "tag:linux")
     assert tag["color"] == "#b48ead"
 
 

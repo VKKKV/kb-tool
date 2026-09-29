@@ -473,12 +473,9 @@ def graph_colors(theme: str, output_format: str, output: Path | None,
 def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
                  output_format: str, output: Path | None) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
-    from .graph_groups import GroupReport, suggest_groups
+    from .graph_groups import suggest_groups
 
     rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)
-    report: GroupReport = {
-        "theme": theme, "limit": limit, "min_count": min_count, "groups": rows,
-    }
     text_lines = [
         f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}"
         for r in rows
@@ -487,7 +484,7 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
         if output_format == "json":
             import json
 
-            click.echo(json.dumps(report, ensure_ascii=False, indent=2))
+            click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
             return
         _emit(rows, output_format, text_lines)
         return
@@ -496,7 +493,7 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
     if output_format == "text":
         content = "\n\n".join(text_lines) + ("\n" if text_lines else "")
     elif output_format == "json":
-        content = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+        content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
     else:
         content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
                         for row in rows)

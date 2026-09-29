@@ -80,7 +80,7 @@ kb graph-groups --format text
 kb graph-groups --theme nord --format text
 kb graph-groups --min-count 2 --format json --output graph-groups.json
 
-JSON output includes `theme`, `limit`, `min_count`, and the `groups` array;
+JSON output remains a top-level array of group suggestions for compatibility;
 JSONL remains one group suggestion per line.
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
