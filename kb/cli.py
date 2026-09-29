@@ -14,6 +14,8 @@ Usage:
     kb context PATH [--depth 1] [--limit 50] [--json]
     kb similar PATH [--top 10] [--json]
     kb dedupe scan [--threshold 0.25] [--limit 100] [--format text|json|jsonl]
+    kb dedupe exact [--include-frontmatter] [--format json|jsonl]
+    kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
 """
 
@@ -256,6 +258,29 @@ def dedupe_scan(ctx: click.Context, threshold: float, limit: int, output_format:
     rows = scan_structural(build_graph(_index(ctx.obj["kb"])), threshold, limit)
     _emit(rows, output_format,
           [f"{r['score']:.6f}\t{r['left']}\t{r['right']}\t{r['method']}" for r in rows])
+
+
+@dedupe.command("exact")
+@click.option("--include-frontmatter", is_flag=True,
+              help="Treat frontmatter differences as content differences")
+@click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
+@click.pass_context
+def dedupe_exact(ctx: click.Context, include_frontmatter: bool, output_format: str):
+    """Find notes with identical normalized content without editing files."""
+    from .dedupe import scan_exact
+    rows = scan_exact(_index(ctx.obj["kb"]).repo, include_frontmatter)
+    _emit(rows, output_format, [])
+
+
+@dedupe.command("paragraphs")
+@click.option("--min-chars", default=40, type=click.IntRange(min=1))
+@click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
+@click.pass_context
+def dedupe_paragraphs(ctx: click.Context, min_chars: int, output_format: str):
+    """Find exact repeated paragraphs across different notes."""
+    from .dedupe import scan_paragraphs
+    rows = scan_paragraphs(_index(ctx.obj["kb"]).repo, min_chars)
+    _emit(rows, output_format, [])
 
 
 def _read_records(path: Path) -> list[dict]:

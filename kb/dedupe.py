@@ -25,6 +25,95 @@ class MigrationPreflightError(ValueError):
         super().__init__(f"migration preflight blocked: {len(issues)} issue(s)")
 
 
+def _markdown_files(repo: Path) -> list[Path]:
+    """Return vault Markdown files, excluding generated backup data."""
+    return sorted(
+        path for path in repo.rglob("*.md")
+        if ".kb-tool-backup" not in path.parts and ".trash" not in path.parts
+    )
+
+
+def _body_without_frontmatter(text: str) -> str:
+    """Remove a leading YAML frontmatter block for content comparisons."""
+    if not text.startswith("---\n"):
+        return text
+    end = text.find("\n---\n", 4)
+    return text[end + 5:] if end >= 0 else text
+
+
+def _normalize_content(text: str) -> str:
+    """Normalize whitespace while preserving Markdown content semantics enough for reports."""
+    body = _body_without_frontmatter(text).replace("\r\n", "\n")
+    return "\n".join(line.rstrip() for line in body.splitlines()).strip()
+
+
+def scan_exact(repo: Path, include_frontmatter: bool = False) -> list[dict[str, Any]]:
+    """Find pairs with identical normalized Markdown content."""
+    groups: dict[str, list[str]] = defaultdict(list)
+    for path in _markdown_files(repo):
+        text = path.read_text(encoding="utf-8")
+        content = text.replace("\r\n", "\n") if include_frontmatter else _normalize_content(text)
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        groups[digest].append(path.relative_to(repo).as_posix())
+    return [
+        {"sha256": digest, "paths": paths, "count": len(paths),
+         "method": "exact", "includes_frontmatter": include_frontmatter}
+        for digest, paths in sorted(groups.items()) if len(paths) > 1
+    ]
+
+
+def _paragraphs(text: str) -> list[tuple[int, str]]:
+    """Extract plain paragraphs, skipping frontmatter, fences, headings, and blockquotes."""
+    body = _body_without_frontmatter(text)
+    result: list[tuple[int, str]] = []
+    buffer: list[str] = []
+    start = 0
+    fenced = False
+    for number, line in enumerate(body.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fenced = not fenced
+        if fenced or not stripped or stripped.startswith("#") or stripped.startswith(">"):
+            if buffer:
+                normalized = _normalize_content("\n".join(buffer))
+                if normalized:
+                    result.append((start, normalized))
+                buffer = []
+            continue
+        if not buffer:
+            start = number
+        buffer.append(line)
+    if buffer:
+        normalized = _normalize_content("\n".join(buffer))
+        if normalized:
+            result.append((start, normalized))
+    return result
+
+
+def scan_paragraphs(repo: Path, min_chars: int = 40) -> list[dict[str, Any]]:
+    """Find identical paragraphs shared by different Markdown notes."""
+    occurrences: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for path in _markdown_files(repo):
+        for line, paragraph in _paragraphs(path.read_text(encoding="utf-8")):
+            if len(paragraph) < min_chars:
+                continue
+            digest = hashlib.sha256(paragraph.encode("utf-8")).hexdigest()
+            occurrences[digest].append({
+                "path": path.relative_to(repo).as_posix(),
+                "line": line,
+                "text": paragraph,
+            })
+    rows = []
+    for digest, matches in sorted(occurrences.items()):
+        paths = {match["path"] for match in matches}
+        if len(paths) < 2:
+            continue
+        rows.append({"sha256": digest, "count": len(matches), "occurrences": matches,
+                     "method": "paragraph-exact"})
+    rows.sort(key=lambda row: (-row["count"], row["sha256"]))
+    return rows
+
+
 def scan_structural(graph: Any, threshold: float = 0.25,
                     limit: int = 100) -> list[dict[str, Any]]:
     """Return note pairs with Jaccard-similar Wikilink neighborhoods."""

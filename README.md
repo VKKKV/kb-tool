@@ -181,6 +181,20 @@ deletes notes:
 kb dedupe scan --threshold 0.50 --limit 100 --format jsonl
 ```
 
+Exact content and paragraph reports are also read-only:
+
+```bash
+kb dedupe exact --format json
+kb dedupe exact --include-frontmatter --format jsonl
+kb dedupe paragraphs --min-chars 40 --format json
+```
+
+`dedupe exact` compares normalized Markdown bodies and ignores frontmatter by
+default. `dedupe paragraphs` reports identical paragraphs occurring in multiple
+notes, with file paths, line numbers, text, and SHA-256 values. Fenced code,
+headings, blockquotes, and short paragraphs are excluded from the paragraph
+report; no content is changed automatically.
+
 Review and planning are separate read-only steps. Edit the reviewed JSON to
 set `action` to `redirect`, then generate an explicit plan:
 
