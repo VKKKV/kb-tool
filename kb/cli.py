@@ -435,13 +435,14 @@ def graph_colors(theme: str, output: Path | None) -> None:
 
 @cli.command("graph-groups")
 @click.option("--limit", default=50, type=click.IntRange(min=1))
-@click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
+@click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.pass_context
 def graph_groups(ctx: click.Context, limit: int, output_format: str) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
     from .graph_groups import suggest_groups
     rows = suggest_groups(_index(ctx.obj["kb"]), limit)
-    _emit(rows, output_format, [])
+    text_lines = [f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}" for r in rows]
+    _emit(rows, output_format, text_lines)
 
 
 @dedupe.command("merge-draft")

@@ -10,6 +10,19 @@ import yaml
 
 from .graph import build_graph
 
+GROUP_COLORS = {"path": "#7aa2f7", "tag": "#bb9af7", "type": "#73daca",
+                "status": "#e0af68", "health": "#f7768e"}
+
+
+def _obsidian_query(kind: str, value: str) -> str:
+    if kind == "tag":
+        return f"tag:#{value}"
+    if kind == "path":
+        return f"path:{value}" if value != "." else "path:/"
+    if kind in {"type", "status"}:
+        return f"[{kind}:{value}]"
+    return ""
+
 
 def _frontmatter(text: str) -> dict[str, Any]:
     if not text.startswith("---\n") or "\n---\n" not in text[4:]:
@@ -56,6 +69,8 @@ def suggest_groups(index: Any, limit: int = 50) -> list[dict[str, Any]]:
             continue
         kind, _, value = name.partition(":")
         rows.append({"name": name, "kind": kind, "value": value,
-                     "query": name, "count": len(paths), "paths": sorted(paths)})
+                     "query": name, "obsidian_query": _obsidian_query(kind, value),
+                     "color": GROUP_COLORS.get(kind, "#7aa2f7"), "count": len(paths),
+                     "paths": sorted(paths)})
     rows.sort(key=lambda row: (-row["count"], row["name"]))
     return rows[:limit]

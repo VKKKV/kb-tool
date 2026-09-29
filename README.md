@@ -68,6 +68,7 @@ kb graph-colors --theme catppuccin --output .obsidian/snippets/kb-graph-colors.c
 # Generate read-only Obsidian Graph View group suggestions
 kb graph-groups --format json
 kb graph-groups --limit 20 --format jsonl
+kb graph-groups --format text
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json

@@ -17,3 +17,6 @@ def test_suggest_groups_uses_metadata_and_health(tmp_path: Path) -> None:
     assert "type:concept" in names
     assert "health:broken-link" in names
     assert all("query" in row and row["count"] >= 1 for row in rows)
+    tag = next(row for row in rows if row["name"] == "tag:python")
+    assert tag["obsidian_query"] == "tag:#python"
+    assert tag["color"].startswith("#")
