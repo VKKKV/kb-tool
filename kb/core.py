@@ -8,10 +8,16 @@ import subprocess
 import urllib.parse
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+
 
 # ── defaults ──────────────────────────────────────────────────────────
-DEFAULT_KB = Path(os.environ.get("KB_ROOT", "~/code/knowledge")).expanduser()
+def effective_kb_root(value: str | Path | None = None) -> Path:
+    """Return one expanded KB root for CLI, indexing, and config discovery."""
+    raw = value if value is not None else os.environ.get("KB_ROOT") or "~/code/knowledge"
+    return Path(raw).expanduser()
+
+
+DEFAULT_KB = effective_kb_root()
 
 EXCLUDE_SCAN_PREFIXES = (
     "50-diary/",
@@ -242,7 +248,7 @@ class FileIndex:
                 outgoing[fp] = targets
         return outgoing
 
-    def _resolve_wikilink_fast(self, source: str, raw: str) -> Optional[str]:
+    def _resolve_wikilink_fast(self, source: str, raw: str) -> str | None:
         """Fast bare-name + path resolution for graph building."""
         bare = raw.replace(".md", "")
         # bare name

@@ -29,7 +29,7 @@ from pathlib import Path
 
 import click
 
-from .core import DEFAULT_KB, FileIndex
+from .core import FileIndex, effective_kb_root
 from .graph_colors import THEME_NAMES
 
 
@@ -46,7 +46,7 @@ def _emit(rows: list, output_format: str, text_lines: list[str]) -> None:
 
 
 def _index(kb: str | None) -> FileIndex:
-    repo = Path(kb) if kb else DEFAULT_KB
+    repo = effective_kb_root(kb)
     if not (repo / ".git").exists():
         click.echo(f"错误: {repo} 不是 git 仓库", err=True)
         sys.exit(1)
@@ -68,7 +68,7 @@ def cli(ctx: click.Context, kb: str | None, config_path: Path | None):
 def _effective_kb_root(ctx: click.Context) -> Path:
     root = ctx.find_root()
     kb = root.obj["kb"]
-    return Path(kb) if kb else DEFAULT_KB
+    return effective_kb_root(kb)
 
 
 def _load_command_config(ctx: click.Context):

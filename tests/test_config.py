@@ -84,3 +84,55 @@ def test_non_string_yaml_keys_are_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="invalid YAML"):
         load_config(kb_root=tmp_path, explicit_path=config)
+
+
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
+    config = tmp_path / "duplicate.yaml"
+    config.write_text("graph:\n  theme: nord\n  theme: default\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="duplicate key"):
+        load_config(kb_root=tmp_path, explicit_path=config)
+
+
+def test_integer_min_contrast_is_normalized_to_float(tmp_path: Path) -> None:
+    config = tmp_path / "numbers.yaml"
+    config.write_text("graph:\n  min_contrast: 1\n", encoding="utf-8")
+
+    loaded = load_config(kb_root=tmp_path, explicit_path=config)
+
+    value = loaded.get("graph", {}).get("min_contrast")
+    assert value == 1.0
+    assert isinstance(value, float)
+
+
+def test_oversized_config_integers_are_rejected(tmp_path: Path) -> None:
+    config = tmp_path / "huge.yaml"
+    value = "1" + ("0" * 400)
+    config.write_text(
+        f"graph:\n  min_contrast: {value}\ngraph_groups:\n  limit: {value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="integer is too large"):
+        load_config(kb_root=tmp_path, explicit_path=config)
+
+
+def test_duplicate_top_level_keys_are_rejected(tmp_path: Path) -> None:
+    config = tmp_path / "duplicate-top.yaml"
+    config.write_text("graph: {}\ngraph: {}\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="duplicate key"):
+        load_config(kb_root=tmp_path, explicit_path=config)
+
+
+def test_cli_reports_invalid_auto_config_without_traceback(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+
+    from kb.cli import cli
+
+    (tmp_path / ".kb-tool.yaml").write_text("graph:\n  unknown: true\n", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["--kb", str(tmp_path), "graph-colors"])
+
+    assert result.exit_code == 1
+    assert "graph.unknown" in result.output
+    assert "Traceback" not in result.output
