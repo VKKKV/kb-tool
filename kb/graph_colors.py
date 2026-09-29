@@ -71,6 +71,19 @@ def validate_theme(colors: dict[str, str], minimum: float = 2.0) -> list[dict[st
     ]
 
 
+def theme_report(colors: dict[str, str], minimum: float = 2.0) -> dict[str, object]:
+    """Return a structured contrast report for a graph color theme."""
+    checks = validate_theme(colors, minimum)
+    conflicts = []
+    for first, second in (("dark_node", "dark_tag"), ("dark_node", "dark_attachment"),
+                          ("light_node", "light_tag"), ("light_node", "light_attachment")):
+        ratio = contrast_ratio(colors[first], colors[second])
+        conflicts.append({"first": first, "second": second, "ratio": ratio,
+                          "ok": ratio >= minimum})
+    return {"minimum_contrast": minimum, "ok": all(row["ok"] for row in checks + conflicts),
+            "checks": checks, "conflicts": conflicts}
+
+
 def render_css(colors: dict[str, str] | None = None) -> str:
     """Render CSS classes supported by Obsidian's Graph View plugin."""
     validate_colors(colors or {})

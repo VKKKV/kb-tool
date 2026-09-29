@@ -428,16 +428,19 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
 def graph_colors(theme: str, output_format: str, output: Path | None,
                  validate: bool, min_contrast: float) -> None:
     """Generate or validate an Obsidian Graph View CSS color snippet."""
-    from .graph_colors import THEMES, render_css, validate_theme, write_css
+    from .graph_colors import THEMES, render_css, theme_report, validate_theme, write_css
     colors = THEMES[theme]
     if validate:
         import json
-        rows = validate_theme(colors, min_contrast)
+        report = theme_report(colors, min_contrast)
+        rows = list(validate_theme(colors, min_contrast))
+        conflicts = theme_report(colors, min_contrast)["conflicts"]
+        rows.extend(list(conflicts))
         text_lines = [f"{r['first']} vs {r['second']}: {r['ratio']} ({'ok' if r['ok'] else 'FAIL'})" for r in rows]
         if output_format == "text":
             content = "\n".join(text_lines) + "\n"
         elif output_format == "json":
-            content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
+            content = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         else:
             content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n" for row in rows)
         if output is None:

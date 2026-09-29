@@ -67,6 +67,7 @@ kb graph-colors --theme catppuccin --output .obsidian/snippets/kb-graph-colors.c
 kb graph-colors --validate --theme nord
 kb graph-colors --validate --min-contrast 3 --format text
 kb graph-colors --validate --theme nord --format json --output graph-color-report.json
+kb graph-colors --validate --theme nord --format jsonl
 
 # Generate read-only Obsidian Graph View group suggestions
 kb graph-groups --format json

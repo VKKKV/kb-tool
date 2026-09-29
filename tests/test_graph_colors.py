@@ -39,3 +39,12 @@ def test_validate_theme_reports_contrast() -> None:
 def test_validate_theme_respects_threshold() -> None:
     from kb.graph_colors import THEMES, validate_theme
     assert any(not row["ok"] for row in validate_theme(THEMES["default"], minimum=10))
+
+
+def test_theme_report_has_context_and_conflicts() -> None:
+    from kb.graph_colors import THEMES, theme_report
+    report = theme_report(THEMES["nord"])
+    assert report["minimum_contrast"] == 2.0
+    assert len(report["checks"]) == 4
+    assert len(report["conflicts"]) == 4
+    assert isinstance(report["ok"], bool)
