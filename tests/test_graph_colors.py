@@ -99,6 +99,25 @@ def test_validate_theme_rejects_non_finite_thresholds() -> None:
             validate_theme(THEMES["default"], minimum=minimum)
 
 
+def test_contrast_reports_keep_partial_palette_compatibility() -> None:
+    from kb.graph_colors import DEFAULT_COLORS, theme_report, validate_theme
+
+    check_colors = {key: DEFAULT_COLORS[key] for key in (
+        "dark_text", "light_text", "dark_node", "light_node",
+        "dark_unresolved", "light_unresolved",
+    )}
+    assert len(validate_theme(check_colors)) == 4
+
+    report_colors = {
+        key: DEFAULT_COLORS[key] for key in (
+            *check_colors, "dark_tag", "dark_attachment", "light_tag", "light_attachment",
+        )
+    }
+    report = theme_report(report_colors, minimum=1)
+    assert len(report["checks"]) == 4
+    assert len(report["conflicts"]) == 4
+
+
 def test_graph_colors_cli_default_css_is_unchanged() -> None:
     result = CliRunner().invoke(cli, ["graph-colors"])
 

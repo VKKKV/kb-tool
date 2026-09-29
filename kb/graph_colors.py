@@ -35,6 +35,13 @@ THEMES = {
 }
 THEME_NAMES: tuple[str, ...] = tuple(THEMES)
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+CHECK_COLOR_KEYS = (
+    "dark_text", "light_text", "dark_node", "light_node",
+    "dark_unresolved", "light_unresolved",
+)
+REPORT_COLOR_KEYS = CHECK_COLOR_KEYS + (
+    "dark_tag", "dark_attachment", "light_tag", "light_attachment",
+)
 
 
 class ContrastCheck(TypedDict):
@@ -129,6 +136,14 @@ def _complete_theme(colors: Mapping[str, str]) -> GraphPalette:
     return cast(GraphPalette, dict(colors))
 
 
+def _require_colors(colors: Mapping[str, str], keys: tuple[str, ...]) -> None:
+    """Validate a partial color mapping required by a specific report."""
+    validate_colors(colors)
+    missing = set(keys) - set(colors)
+    if missing:
+        raise ValueError("missing graph color(s): " + ", ".join(sorted(missing)))
+
+
 def _luminance(value: str) -> float:
     rgb = [int(value[i:i + 2], 16) / 255 for i in (1, 3, 5)]
     linear = [channel / 12.92 if channel <= 0.03928
@@ -154,7 +169,7 @@ def validate_theme(colors: Mapping[str, str], minimum: float = 2.0) -> list[Cont
     """Report low-contrast text/node and node/unresolved color pairs."""
     if not isinstance(minimum, (int, float)) or not math.isfinite(minimum) or minimum < 1.0:
         raise ValueError("minimum contrast must be a finite number >= 1.0")
-    colors = _complete_theme(colors)
+    _require_colors(colors, CHECK_COLOR_KEYS)
     checks = [("dark_text", "dark_node"), ("light_text", "light_node"),
               ("dark_node", "dark_unresolved"), ("light_node", "light_unresolved")]
     return [_contrast_check(colors, first, second, minimum) for first, second in checks]
@@ -162,7 +177,7 @@ def validate_theme(colors: Mapping[str, str], minimum: float = 2.0) -> list[Cont
 
 def theme_report(colors: Mapping[str, str], minimum: float = 2.0) -> ThemeReport:
     """Return a structured contrast report for a graph color theme."""
-    colors = cast(Mapping[str, str], _complete_theme(colors))
+    _require_colors(colors, REPORT_COLOR_KEYS)
     checks = validate_theme(colors, minimum)
     conflicts: list[ContrastCheck] = []
     for first, second in (("dark_node", "dark_tag"), ("dark_node", "dark_attachment"),
