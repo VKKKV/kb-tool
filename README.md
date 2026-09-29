@@ -65,6 +65,10 @@ kb graph-colors --output .obsidian/snippets/kb-graph-colors.css
 kb graph-colors --theme nord
 kb graph-colors --theme catppuccin --output .obsidian/snippets/kb-graph-colors.css
 
+# Generate read-only Obsidian Graph View group suggestions
+kb graph-groups --format json
+kb graph-groups --limit 20 --format jsonl
+
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json
 printf '[{"path":"path/to/note.md","score":0.9}]' \

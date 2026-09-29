@@ -18,6 +18,7 @@ Usage:
     kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
     kb graph-colors [--output PATH]
+    kb graph-groups [--limit 50] [--format json|jsonl]
 """
 
 from __future__ import annotations
@@ -430,6 +431,17 @@ def graph_colors(theme: str, output: Path | None) -> None:
     else:
         write_css(output, colors)
         click.echo(f"wrote {output}")
+
+
+@cli.command("graph-groups")
+@click.option("--limit", default=50, type=click.IntRange(min=1))
+@click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
+@click.pass_context
+def graph_groups(ctx: click.Context, limit: int, output_format: str) -> None:
+    """Suggest read-only Obsidian Graph View search groups."""
+    from .graph_groups import suggest_groups
+    rows = suggest_groups(_index(ctx.obj["kb"]), limit)
+    _emit(rows, output_format, [])
 
 
 @dedupe.command("merge-draft")
