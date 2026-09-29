@@ -56,7 +56,7 @@ class ContrastCheck(TypedDict):
 class ThemeReport(TypedDict):
     """Machine-readable result of validating one graph color theme."""
 
-    minimum_contrast: float
+    minimum_contrast: int | float
     ok: bool
     checks: list[ContrastCheck]
     conflicts: list[ContrastCheck]
@@ -117,17 +117,20 @@ def get_group_palette(name: str = "default") -> GroupPalette:
     }
 
 
-def validate_colors(colors: Mapping[str, str]) -> None:
+def validate_colors(colors: Mapping[str, object]) -> None:
     """Reject unknown keys and malformed six-digit hex colors."""
     unknown = set(colors) - set(DEFAULT_COLORS)
     if unknown:
         raise ValueError(f"unknown graph color(s): {', '.join(sorted(unknown))}")
-    invalid = {key for key, value in colors.items() if not HEX_COLOR.fullmatch(value)}
+    invalid = {
+        key for key, value in colors.items()
+        if not isinstance(value, str) or not HEX_COLOR.fullmatch(value)
+    }
     if invalid:
         raise ValueError("colors must use #RRGGBB: " + ", ".join(sorted(invalid)))
 
 
-def _complete_theme(colors: Mapping[str, str]) -> GraphPalette:
+def _complete_theme(colors: Mapping[str, object]) -> GraphPalette:
     """Validate and copy a complete named theme."""
     validate_colors(colors)
     missing = set(DEFAULT_COLORS) - set(colors)
@@ -136,7 +139,7 @@ def _complete_theme(colors: Mapping[str, str]) -> GraphPalette:
     return cast(GraphPalette, dict(colors))
 
 
-def _require_colors(colors: Mapping[str, str], keys: tuple[str, ...]) -> None:
+def _require_colors(colors: Mapping[str, object], keys: tuple[str, ...]) -> None:
     """Validate a partial color mapping required by a specific report."""
     validate_colors(colors)
     missing = set(keys) - set(colors)
@@ -159,15 +162,24 @@ def contrast_ratio(first: str, second: str) -> float:
     return round((light + 0.05) / (dark + 0.05), 2)
 
 
-def _contrast_check(colors: Mapping[str, str], first: str, second: str,
-                    minimum: float) -> ContrastCheck:
-    ratio = contrast_ratio(colors[first], colors[second])
+def _contrast_check(colors: Mapping[str, object], first: str, second: str,
+                    minimum: int | float) -> ContrastCheck:
+    first_color = colors[first]
+    second_color = colors[second]
+    if not isinstance(first_color, str) or not isinstance(second_color, str):
+        raise ValueError("colors must use #RRGGBB")
+    ratio = contrast_ratio(first_color, second_color)
     return {"first": first, "second": second, "ratio": ratio, "ok": ratio >= minimum}
 
 
-def validate_theme(colors: Mapping[str, str], minimum: float = 2.0) -> list[ContrastCheck]:
+def validate_theme(
+    colors: Mapping[str, object], minimum: int | float = 2.0
+) -> list[ContrastCheck]:
     """Report low-contrast text/node and node/unresolved color pairs."""
-    if not isinstance(minimum, (int, float)) or not math.isfinite(minimum) or minimum < 1.0:
+    finite = isinstance(minimum, (int, float)) and not isinstance(minimum, bool)
+    if isinstance(minimum, float):
+        finite = finite and math.isfinite(minimum)
+    if not finite or minimum < 1.0:
         raise ValueError("minimum contrast must be a finite number >= 1.0")
     _require_colors(colors, CHECK_COLOR_KEYS)
     checks = [("dark_text", "dark_node"), ("light_text", "light_node"),
@@ -175,7 +187,9 @@ def validate_theme(colors: Mapping[str, str], minimum: float = 2.0) -> list[Cont
     return [_contrast_check(colors, first, second, minimum) for first, second in checks]
 
 
-def theme_report(colors: Mapping[str, str], minimum: float = 2.0) -> ThemeReport:
+def theme_report(
+    colors: Mapping[str, object], minimum: int | float = 2.0
+) -> ThemeReport:
     """Return a structured contrast report for a graph color theme."""
     _require_colors(colors, REPORT_COLOR_KEYS)
     checks = validate_theme(colors, minimum)
@@ -187,7 +201,7 @@ def theme_report(colors: Mapping[str, str], minimum: float = 2.0) -> ThemeReport
             "checks": checks, "conflicts": conflicts}
 
 
-def render_css(colors: Mapping[str, str] | None = None) -> str:
+def render_css(colors: Mapping[str, object] | None = None) -> str:
     """Render CSS classes supported by Obsidian's Graph View plugin."""
     validate_colors(colors or {})
     v = {**DEFAULT_COLORS, **(colors or {})}
@@ -211,7 +225,7 @@ def render_css(colors: Mapping[str, str] | None = None) -> str:
 """
 
 
-def write_css(path: Path, colors: Mapping[str, str] | None = None) -> Path:
+def write_css(path: Path, colors: Mapping[str, object] | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_css(colors), encoding="utf-8")
     return path

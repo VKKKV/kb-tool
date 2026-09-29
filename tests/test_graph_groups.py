@@ -83,3 +83,35 @@ def test_graph_groups_cli_jsonl_remains_row_oriented(tmp_path: Path) -> None:
     rows = [json.loads(line) for line in result.output.splitlines()]
     assert rows
     assert all("name" in row and "count" in row for row in rows)
+
+
+def test_graph_groups_uses_config_defaults_but_cli_wins(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text(
+        "---\ntags: linux\n---\n[[b]]\n", encoding="utf-8"
+    )
+    (tmp_path / "b.md").write_text("---\ntags: linux\n---\n", encoding="utf-8")
+    (tmp_path / ".kb-tool.yaml").write_text(
+        "graph_groups:\n  theme: nord\n  min_count: 2\n  limit: 1\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+
+    result = CliRunner().invoke(
+        cli, ["--kb", str(tmp_path), "graph-groups", "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.output)
+    assert len(rows) == 1
+    assert rows[0]["name"] == "path:."
+    assert rows[0]["color"] == "#88c0d0"
+
+    overridden = CliRunner().invoke(
+        cli,
+        ["--kb", str(tmp_path), "graph-groups", "--theme", "catppuccin",
+         "--min-count", "1", "--limit", "50", "--format", "json"],
+    )
+    assert overridden.exit_code == 0, overridden.output
+    overridden_rows = json.loads(overridden.output)
+    assert len(overridden_rows) > 1
+    path_row = next(row for row in overridden_rows if row["name"] == "path:.")
+    assert path_row["color"] == "#89b4fa"

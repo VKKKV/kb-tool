@@ -83,6 +83,26 @@ kb graph-groups --min-count 2 --format json --output graph-groups.json
 JSON output remains a top-level array of group suggestions for compatibility;
 JSONL remains one group suggestion per line.
 
+Graph command defaults can be configured in `.kb-tool.yaml` at the effective KB
+root. Use `--config PATH` to select another file; it replaces auto-discovery.
+The option must appear before the command name:
+
+```yaml
+graph:
+  theme: nord
+  min_contrast: 2.0
+graph_groups:
+  theme: nord
+  min_count: 2
+  limit: 50
+```
+
+Configuration applies to `graph-colors` and `graph-groups` only. Explicit CLI
+options override the file, and the file is still fully validated. The effective
+KB root is selected by `--kb`, then `KB_ROOT`, then the built-in default.
+The `graph` section configures `graph-colors`; it does not configure the
+separate `kb graph` analysis command.
+
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json
 printf '[{"path":"path/to/note.md","score":0.9}]' \
@@ -401,6 +421,7 @@ kb-tool/
 │   ├── scanner.py       # Broken link detection
 │   ├── orphan.py        # Orphan file analysis
 │   ├── graph.py         # Graph algorithms (NetworkX)
+│   ├── config.py        # Optional graph command configuration
 │   ├── sync.py          # README synchronization
 │   ├── migrations.py    # Explicit-path Markdown migrations
 │   └── fixer.py         # Auto-fix utilities

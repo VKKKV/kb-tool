@@ -17,7 +17,7 @@ Usage:
     kb dedupe exact [--include-frontmatter] [--limit 100] [--format json|jsonl]
     kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
-    kb graph-colors [--output PATH]
+    kb [--config PATH] graph-colors [--output PATH]
     kb graph-groups [--limit 50] [--min-count 1] [--theme default|nord|catppuccin] [--format text|json|jsonl]
 """
 
@@ -33,7 +33,7 @@ from .core import DEFAULT_KB, FileIndex
 from .graph_colors import THEME_NAMES
 
 
-def _emit(rows: list[dict], output_format: str, text_lines: list[str]) -> None:
+def _emit(rows: list, output_format: str, text_lines: list[str]) -> None:
     """Emit records for humans or Unix pipelines."""
     import json
     if output_format == "text":
@@ -55,11 +55,37 @@ def _index(kb: str | None) -> FileIndex:
 
 @click.group()
 @click.option("--kb", envvar="KB_ROOT", default=None, help="知识库根目录")
+@click.option("--config", "config_path", type=click.Path(dir_okay=False, path_type=Path),
+              default=None, help="配置文件路径")
 @click.pass_context
-def cli(ctx: click.Context, kb: str | None):
+def cli(ctx: click.Context, kb: str | None, config_path: Path | None):
     """kb — 知识库统一管理工具"""
     ctx.ensure_object(dict)
     ctx.obj["kb"] = kb
+    ctx.obj["config_path"] = config_path
+
+
+def _effective_kb_root(ctx: click.Context) -> Path:
+    root = ctx.find_root()
+    kb = root.obj["kb"]
+    return Path(kb) if kb else DEFAULT_KB
+
+
+def _load_command_config(ctx: click.Context):
+    from .config import ConfigError, ConfigPathError, load_config
+
+    root = ctx.find_root()
+    try:
+        return load_config(
+            kb_root=_effective_kb_root(ctx),
+            explicit_path=root.obj["config_path"],
+        )
+    except ConfigPathError as exc:
+        if exc.explicit:
+            raise click.UsageError(str(exc)) from exc
+        raise click.ClickException(str(exc)) from exc
+    except ConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @cli.command()
@@ -427,11 +453,18 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
 @click.option("--theme", type=click.Choice(THEME_NAMES), default="default")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
-def graph_colors(theme: str, output_format: str, output: Path | None,
+@click.pass_context
+def graph_colors(ctx: click.Context, theme: str, output_format: str, output: Path | None,
                  validate: bool, min_contrast: float) -> None:
     """Generate or validate an Obsidian Graph View CSS color snippet."""
+    config = _load_command_config(ctx)
+    graph_config = config.get("graph", {})
+    if ctx.get_parameter_source("theme") != click.core.ParameterSource.COMMANDLINE:
+        theme = graph_config.get("theme", theme)
+    if ctx.get_parameter_source("min_contrast") != click.core.ParameterSource.COMMANDLINE:
+        min_contrast = graph_config.get("min_contrast", min_contrast)
     from .graph_colors import get_theme, render_css, theme_report, write_css
-    if not math.isfinite(min_contrast):
+    if isinstance(min_contrast, float) and not math.isfinite(min_contrast):
         raise click.BadParameter("must be finite", param_hint="--min-contrast")
     colors = get_theme(theme)
     if validate:
@@ -473,6 +506,14 @@ def graph_colors(theme: str, output_format: str, output: Path | None,
 def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
                  output_format: str, output: Path | None) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
+    config = _load_command_config(ctx)
+    groups_config = config.get("graph_groups", {})
+    if ctx.get_parameter_source("theme") != click.core.ParameterSource.COMMANDLINE:
+        theme = groups_config.get("theme", theme)
+    if ctx.get_parameter_source("limit") != click.core.ParameterSource.COMMANDLINE:
+        limit = groups_config.get("limit", limit)
+    if ctx.get_parameter_source("min_count") != click.core.ParameterSource.COMMANDLINE:
+        min_count = groups_config.get("min_count", min_count)
     from .graph_groups import suggest_groups
 
     rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)

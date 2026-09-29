@@ -99,6 +99,15 @@ def test_validate_theme_rejects_non_finite_thresholds() -> None:
             validate_theme(THEMES["default"], minimum=minimum)
 
 
+def test_validate_theme_accepts_arbitrarily_large_integer_threshold() -> None:
+    from kb.graph_colors import THEMES, validate_theme
+
+    rows = validate_theme(THEMES["default"], minimum=10**1000)
+
+    assert len(rows) == 4
+    assert all(not row["ok"] for row in rows)
+
+
 def test_contrast_reports_keep_partial_palette_compatibility() -> None:
     from kb.graph_colors import DEFAULT_COLORS, theme_report, validate_theme
 
@@ -210,3 +219,56 @@ def test_graph_colors_cli_rejects_unknown_theme() -> None:
 
     assert result.exit_code == 2
     assert "Invalid value for '--theme'" in result.output
+
+
+def test_graph_colors_uses_kb_local_config_and_cli_overrides(tmp_path: Path) -> None:
+    (tmp_path / ".kb-tool.yaml").write_text(
+        "graph:\n  theme: nord\n  min_contrast: 1\n", encoding="utf-8"
+    )
+    result = CliRunner().invoke(
+        cli, ["--kb", str(tmp_path), "graph-colors", "--validate", "--format", "json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    import json
+    report = json.loads(result.output)
+    assert report["minimum_contrast"] == 1
+
+    overridden = CliRunner().invoke(
+        cli,
+        [
+            "--kb", str(tmp_path), "graph-colors", "--validate", "--theme", "catppuccin",
+            "--min-contrast", "10", "--format", "json",
+        ],
+    )
+    assert overridden.exit_code == 1
+    import json
+    overridden_report = json.loads(overridden.output)
+    assert overridden_report["minimum_contrast"] == 10.0
+    assert overridden_report["checks"][0]["ratio"] == 1.46
+
+
+def test_graph_colors_explicit_config_replaces_auto_discovery(tmp_path: Path) -> None:
+    (tmp_path / ".kb-tool.yaml").write_text("graph:\n  theme: nord\n", encoding="utf-8")
+    explicit = tmp_path / "other.yaml"
+    explicit.write_text("graph:\n  theme: catppuccin\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["--kb", str(tmp_path), "--config", str(explicit), "graph-colors"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert ".theme-dark .graph-view.color-fill { color: #89b4fa; }" in result.output
+    assert ".theme-dark .graph-view.color-fill { color: #88c0d0; }" not in result.output
+
+
+def test_graph_colors_rejects_invalid_config_with_key_and_path(tmp_path: Path) -> None:
+    config = tmp_path / "bad.yaml"
+    config.write_text("graph:\n  min_contrast: nan\n", encoding="utf-8")
+
+    result = CliRunner().invoke(cli, ["--config", str(config), "graph-colors"])
+
+    assert result.exit_code == 1
+    assert str(config) in result.output
+    assert "graph.min_contrast" in result.output
