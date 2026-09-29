@@ -29,3 +29,14 @@ def test_scan_paragraphs_reports_cross_note_duplicates(tmp_path: Path) -> None:
 
     assert len(rows) == 1
     assert {item["path"] for item in rows[0]["occurrences"]} == {"a.md", "b.md"}
+
+
+def test_scan_exact_limit_is_deterministic(tmp_path: Path) -> None:
+    for name in ("a", "b", "c"):
+        (tmp_path / f"{name}1.md").write_text(name, encoding="utf-8")
+        (tmp_path / f"{name}2.md").write_text(name, encoding="utf-8")
+
+    rows = scan_exact(tmp_path, limit=2)
+
+    assert len(rows) == 2
+    assert [row["paths"] for row in rows] == [["a1.md", "a2.md"], ["b1.md", "b2.md"]]

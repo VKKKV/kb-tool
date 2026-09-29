@@ -47,19 +47,24 @@ def _normalize_content(text: str) -> str:
     return "\n".join(line.rstrip() for line in body.splitlines()).strip()
 
 
-def scan_exact(repo: Path, include_frontmatter: bool = False) -> list[dict[str, Any]]:
+def scan_exact(repo: Path, include_frontmatter: bool = False,
+               limit: int | None = None) -> list[dict[str, Any]]:
     """Find pairs with identical normalized Markdown content."""
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be >= 1")
     groups: dict[str, list[str]] = defaultdict(list)
     for path in _markdown_files(repo):
         text = path.read_text(encoding="utf-8")
         content = text.replace("\r\n", "\n") if include_frontmatter else _normalize_content(text)
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         groups[digest].append(path.relative_to(repo).as_posix())
-    return [
+    rows = [
         {"sha256": digest, "paths": paths, "count": len(paths),
          "method": "exact", "includes_frontmatter": include_frontmatter}
         for digest, paths in sorted(groups.items()) if len(paths) > 1
     ]
+    rows.sort(key=lambda row: (-row["count"], row["paths"]))
+    return rows[:limit] if limit is not None else rows
 
 
 def _paragraphs(text: str) -> list[tuple[int, str]]:
