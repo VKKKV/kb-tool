@@ -23,12 +23,14 @@ Usage:
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
 import click
 
 from .core import DEFAULT_KB, FileIndex
+from .graph_colors import THEME_NAMES
 
 
 def _emit(rows: list[dict], output_format: str, text_lines: list[str]) -> None:
@@ -422,20 +424,20 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
 @cli.command("graph-colors")
 @click.option("--validate", "validate", is_flag=True, help="Validate theme contrast instead of rendering CSS")
 @click.option("--min-contrast", default=2.0, type=click.FloatRange(min=1.0), show_default=True)
-@click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
+@click.option("--theme", type=click.Choice(THEME_NAMES), default="default")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 def graph_colors(theme: str, output_format: str, output: Path | None,
                  validate: bool, min_contrast: float) -> None:
     """Generate or validate an Obsidian Graph View CSS color snippet."""
-    from .graph_colors import THEMES, render_css, theme_report, validate_theme, write_css
-    colors = THEMES[theme]
+    from .graph_colors import get_theme, render_css, theme_report, write_css
+    if not math.isfinite(min_contrast):
+        raise click.BadParameter("must be finite", param_hint="--min-contrast")
+    colors = get_theme(theme)
     if validate:
         import json
         report = theme_report(colors, min_contrast)
-        rows = list(validate_theme(colors, min_contrast))
-        conflicts = theme_report(colors, min_contrast)["conflicts"]
-        rows.extend(list(conflicts))
+        rows = report["checks"] + report["conflicts"]
         text_lines = [f"{r['first']} vs {r['second']}: {r['ratio']} ({'ok' if r['ok'] else 'FAIL'})" for r in rows]
         if output_format == "text":
             content = "\n".join(text_lines) + "\n"
@@ -464,27 +466,37 @@ def graph_colors(theme: str, output_format: str, output: Path | None,
 @cli.command("graph-groups")
 @click.option("--limit", default=50, type=click.IntRange(min=1))
 @click.option("--min-count", default=1, type=click.IntRange(min=1))
-@click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
+@click.option("--theme", type=click.Choice(THEME_NAMES), default="default")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.pass_context
 def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
                  output_format: str, output: Path | None) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
-    from .graph_groups import suggest_groups
+    from .graph_groups import GroupReport, suggest_groups
+
     rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)
+    report: GroupReport = {
+        "theme": theme, "limit": limit, "min_count": min_count, "groups": rows,
+    }
     text_lines = [
         f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}"
         for r in rows
     ]
     if output is None:
+        if output_format == "json":
+            import json
+
+            click.echo(json.dumps(report, ensure_ascii=False, indent=2))
+            return
         _emit(rows, output_format, text_lines)
         return
     import json
+
     if output_format == "text":
         content = "\n\n".join(text_lines) + ("\n" if text_lines else "")
     elif output_format == "json":
-        content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
+        content = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     else:
         content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
                         for row in rows)

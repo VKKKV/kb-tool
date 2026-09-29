@@ -69,12 +69,19 @@ kb graph-colors --validate --min-contrast 3 --format text
 kb graph-colors --validate --theme nord --format json --output graph-color-report.json
 kb graph-colors --validate --theme nord --format jsonl
 
+`graph-colors --validate` returns a structured report in JSON mode with
+`checks` for readability and `conflicts` for graph-group color separation.
+The command exits with status 1 when any pair is below `--min-contrast`.
+
 # Generate read-only Obsidian Graph View group suggestions
 kb graph-groups --format json
 kb graph-groups --limit 20 --format jsonl
 kb graph-groups --format text
 kb graph-groups --theme nord --format text
 kb graph-groups --min-count 2 --format json --output graph-groups.json
+
+JSON output includes `theme`, `limit`, `min_count`, and the `groups` array;
+JSONL remains one group suggestion per line.
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json

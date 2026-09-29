@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from click.testing import CliRunner
+
+from kb.cli import cli
 from kb.graph_colors import render_css, validate_colors, write_css
 
 
@@ -48,3 +51,143 @@ def test_theme_report_has_context_and_conflicts() -> None:
     assert len(report["checks"]) == 4
     assert len(report["conflicts"]) == 4
     assert isinstance(report["ok"], bool)
+
+
+def test_theme_helpers_return_isolated_semantic_palettes() -> None:
+    from kb.graph_colors import DEFAULT_COLORS, get_graph_palette, get_group_palette, get_theme
+
+    theme = get_theme("nord")
+    theme["dark_node"] = "#000000"
+    assert get_theme("nord")["dark_node"] == "#88c0d0"
+    assert get_graph_palette("nord") == get_theme("nord")
+    assert set(get_graph_palette("nord")) == set(DEFAULT_COLORS)
+    assert get_group_palette("nord") == {
+        "path": "#88c0d0",
+        "tag": "#b48ead",
+        "type": "#73daca",
+        "status": "#e0af68",
+        "health": "#bf616a",
+    }
+
+
+def test_theme_helpers_reject_unknown_theme() -> None:
+    import pytest
+
+    from kb.graph_colors import get_theme
+
+    with pytest.raises(ValueError, match="unknown graph color theme"):
+        get_theme("missing")
+
+
+def test_theme_helpers_reject_incomplete_named_theme(monkeypatch) -> None:
+    import pytest
+
+    from kb.graph_colors import THEMES, get_theme
+
+    monkeypatch.setitem(THEMES, "incomplete", {"dark_node": "#000000"})
+    with pytest.raises(ValueError, match="missing graph color"):
+        get_theme("incomplete")
+
+
+def test_validate_theme_rejects_non_finite_thresholds() -> None:
+    import pytest
+
+    from kb.graph_colors import THEMES, validate_theme
+
+    for minimum in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="finite"):
+            validate_theme(THEMES["default"], minimum=minimum)
+
+
+def test_graph_colors_cli_default_css_is_unchanged() -> None:
+    result = CliRunner().invoke(cli, ["graph-colors"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output == render_css()
+
+
+def test_graph_colors_cli_emits_structured_json_and_success_code() -> None:
+    result = CliRunner().invoke(
+        cli, ["graph-colors", "--validate", "--min-contrast", "1", "--format", "json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    import json
+    report = json.loads(result.output)
+    assert report["minimum_contrast"] == 1.0
+    assert report["ok"] is True
+    assert len(report["checks"]) == 4
+    assert len(report["conflicts"]) == 4
+
+
+def test_graph_colors_cli_jsonl_output_and_failure_code(tmp_path: Path) -> None:
+    output = tmp_path / "reports" / "colors.jsonl"
+    result = CliRunner().invoke(
+        cli,
+        [
+            "graph-colors", "--validate", "--min-contrast", "10",
+            "--format", "jsonl", "--output", str(output),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert result.output == f"wrote {output}\n"
+    import json
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 8
+    assert all(row["ok"] is False for row in rows)
+
+
+def test_graph_colors_cli_text_output_lists_checks() -> None:
+    result = CliRunner().invoke(
+        cli, ["graph-colors", "--validate", "--min-contrast", "1", "--format", "text"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "dark_text vs dark_node" in result.output
+    assert "light_node vs light_attachment" in result.output
+    assert result.output.count("(ok)") == 8
+
+
+def test_graph_colors_cli_json_output_file_contains_report(tmp_path: Path) -> None:
+    output = tmp_path / "reports" / "colors.json"
+    result = CliRunner().invoke(
+        cli,
+        [
+            "graph-colors", "--validate", "--min-contrast", "1",
+            "--format", "json", "--output", str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output == f"wrote {output}\n"
+    import json
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["ok"] is True
+    assert report["minimum_contrast"] == 1.0
+
+
+def test_graph_colors_cli_rejects_format_without_validation() -> None:
+    result = CliRunner().invoke(cli, ["graph-colors", "--format", "text"])
+
+    assert result.exit_code == 2
+    assert "only available with --validate" in result.output
+
+
+def test_graph_colors_cli_rejects_non_finite_thresholds() -> None:
+    for minimum in ("nan", "inf", "1e309"):
+        result = CliRunner().invoke(
+            cli, ["graph-colors", "--validate", "--min-contrast", minimum, "--format", "json"]
+        )
+
+        assert result.exit_code == 2
+        assert "must be finite" in result.output
+        assert "NaN" not in result.output
+        assert "Infinity" not in result.output
+
+
+def test_graph_colors_cli_rejects_unknown_theme() -> None:
+    result = CliRunner().invoke(cli, ["graph-colors", "--theme", "missing"])
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--theme'" in result.output

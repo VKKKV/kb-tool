@@ -4,15 +4,39 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import yaml
 
 from .graph import build_graph
-from .graph_colors import THEMES
+from .graph_colors import get_group_palette
 
-GROUP_COLORS = {"path": "#7aa2f7", "tag": "#bb9af7", "type": "#73daca",
-                "status": "#e0af68", "health": "#f7768e"}
+GROUP_COLORS = get_group_palette("default")
+
+
+class GroupSuggestion(TypedDict):
+    """One deterministic Obsidian Graph View group suggestion."""
+
+    name: str
+    kind: str
+    value: str
+    query: str
+    obsidian_query: str
+    property_query: str | None
+    color: str
+    requires_kb_tool: bool
+    kb_command: str | None
+    count: int
+    paths: list[str]
+
+
+class GroupReport(TypedDict):
+    """Structured metadata and rows for a graph-groups JSON report."""
+
+    theme: str
+    limit: int
+    min_count: int
+    groups: list[GroupSuggestion]
 
 
 def _obsidian_query(kind: str, value: str) -> str:
@@ -57,18 +81,13 @@ def _metadata_tags(metadata: dict[str, Any]) -> list[str]:
 
 
 def suggest_groups(index: Any, limit: int = 50, theme: str = "default",
-                   min_count: int = 1) -> list[dict[str, Any]]:
+                   min_count: int = 1) -> list[GroupSuggestion]:
     """Return deterministic groups based on paths, metadata, and graph health."""
     if limit < 1:
         raise ValueError("limit must be >= 1")
     if min_count < 1:
         raise ValueError("min_count must be >= 1")
-    if theme not in THEMES:
-        raise ValueError(f"unknown graph color theme: {theme}")
-    palette = THEMES[theme]
-    group_colors = {"path": palette["dark_node"], "tag": palette["dark_tag"],
-                    "type": palette["dark_attachment"], "status": palette["dark_highlight"],
-                    "health": palette["dark_unresolved"]}
+    group_colors = get_group_palette(theme)
     groups: dict[str, set[str]] = {}
     for path in sorted(index.md_files):
         _add(groups, f"path:{Path(path).parent.as_posix()}", path)
@@ -92,7 +111,7 @@ def suggest_groups(index: Any, limit: int = 50, theme: str = "default",
                for match in re.finditer(r"(?<!`)\[\[([^\]\n]+)\]\]", text)):
             _add(groups, "health:broken-link", path)
 
-    rows = []
+    rows: list[GroupSuggestion] = []
     for name, paths in groups.items():
         if not paths:
             continue
@@ -102,7 +121,7 @@ def suggest_groups(index: Any, limit: int = 50, theme: str = "default",
         rows.append({"name": name, "kind": kind, "value": value,
                      "query": name, "obsidian_query": _obsidian_query(kind, value),
                      "property_query": _property_query(kind, value),
-                     "color": group_colors.get(kind, palette["dark_node"]),
+                     "color": group_colors.get(kind, group_colors["path"]),
                      "requires_kb_tool": kind == "health",
                      "kb_command": _kb_command(value) if kind == "health" else None,
                      "count": len(paths),
