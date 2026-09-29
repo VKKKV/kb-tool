@@ -10,6 +10,7 @@ Unified knowledge base management tool for wikilink-based knowledge graphs.
 - **Broken Link Scanner** — Detect and report broken wikilinks across your knowledge base
 - **Orphan Analysis** — Find files with no incoming or outgoing links
 - **Graph Analysis** — Identify hub nodes, isolated islands, and missing pages
+- **Obsidian Graph Colors** — Generate a theme-aware Graph View CSS snippet
 - **Graph Retrieval Primitives** — Export hop-labeled neighborhoods and expand external JSON search results
 - **Structural Similarity** — Find notes with similar Wikilink neighborhoods without embeddings
 - **Duplicate Candidates** — Report structurally similar note pairs without editing files
@@ -57,6 +58,10 @@ kb orphan
 
 # Full graph analysis
 kb graph
+
+# Generate an Obsidian Graph View color snippet
+kb graph-colors
+kb graph-colors --output .obsidian/snippets/kb-graph-colors.css
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json

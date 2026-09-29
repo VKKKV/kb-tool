@@ -17,6 +17,7 @@ Usage:
     kb dedupe exact [--include-frontmatter] [--limit 100] [--format json|jsonl]
     kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
+    kb graph-colors [--output PATH]
 """
 
 from __future__ import annotations
@@ -415,6 +416,18 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
     _emit(rows, output_format, [])
     if any(not row["ok"] for row in rows):
         raise click.exceptions.Exit(1)
+
+
+@cli.command("graph-colors")
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
+def graph_colors(output: Path | None) -> None:
+    """Generate an Obsidian Graph View CSS color snippet."""
+    from .graph_colors import render_css, write_css
+    if output is None:
+        click.echo(render_css(), nl=False)
+    else:
+        write_css(output)
+        click.echo(f"wrote {output}")
 
 
 @dedupe.command("merge-draft")
