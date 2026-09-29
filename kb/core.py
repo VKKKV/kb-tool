@@ -261,6 +261,21 @@ class FileIndex:
                 return resolved
         return None
 
+    def resolve_fragment(self, source: str, raw: str) -> tuple[str | None, str | None]:
+        """Resolve a wikilink target and return its fragment separately."""
+        target, _, fragment = raw.partition("#")
+        resolved = self._resolve_wikilink_fast(source, target.strip())
+        return resolved, fragment or None
+
+    def resolve_wikilink_status(self, source: str, raw: str) -> tuple[str, list[str]]:
+        """Return resolved/ambiguous/missing plus candidate paths."""
+        target = raw.split("#", 1)[0].strip()
+        stem = Path(target).stem
+        if stem in self._by_stem and len(self._by_stem[stem]) > 1 and "/" not in target:
+            return "ambiguous", sorted(self._by_stem[stem])
+        resolved = self._resolve_wikilink_fast(source, target)
+        return ("resolved", [resolved]) if resolved else ("missing", [])
+
 
 # ── utils ─────────────────────────────────────────────────────────────
 

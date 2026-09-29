@@ -10,6 +10,9 @@ Unified knowledge base management tool for wikilink-based knowledge graphs.
 - **Broken Link Scanner** — Detect and report broken wikilinks across your knowledge base
 - **Orphan Analysis** — Find files with no incoming or outgoing links
 - **Graph Analysis** — Identify hub nodes, isolated islands, and missing pages
+- **Graph Retrieval Primitives** — Export hop-labeled neighborhoods and expand external JSON search results
+- **Structural Similarity** — Find notes with similar Wikilink neighborhoods without embeddings
+- **Duplicate Candidates** — Report structurally similar note pairs without editing files
 - **Auto-Fix** — Automatically fix zero-link files and pipe character corruption
 - **README Sync** — Keep file counts in README.md up to date
 - **Markdown Migrations** — Convert dated links and normalize WeChat archive metadata
@@ -54,6 +57,11 @@ kb orphan
 
 # Full graph analysis
 kb graph
+
+# Unix-style graph retrieval: independent of qmd or any other search engine
+kb neighbors path/to/note.md --depth 1 --direction both --json
+printf '[{"path":"path/to/note.md","score":0.9}]' \
+  | kb expand --stdin --depth 1 --direction both
 ```
 
 ## Commands
@@ -118,6 +126,127 @@ kb graph -m wanted       # Missing pages (referenced but don't exist)
 - **Hubs** — Files with the most incoming links (knowledge anchors)
 - **Islands** — Files with no connections (potential orphans)
 - **Wanted** — Pages referenced but not yet created
+
+### `kb neighbors` — Wikilink Neighborhood
+
+Return the anchor files and their link neighbors. This command does not perform
+semantic search and has no dependency on qmd. Output is tab-separated by default
+or JSON with `--json`, making it suitable for shell pipelines and other search
+tools.
+
+```bash
+kb neighbors path/to/note.md --depth 1 --direction both
+kb neighbors path/to/note.md --depth 2 --json
+```
+
+### `kb expand` — Expand External Search Results
+
+Read a JSON array from stdin and add graph neighbors. The input contract is
+deliberately tool-neutral: each item needs a `path` field and may carry a
+`score`, `source`, or other fields. Existing scores are preserved; graph-added
+items are marked with `source=graph`.
+
+```bash
+some-search-tool --json "question" \
+  | kb expand --stdin --depth 1 --direction both
+```
+
+`kb-tool` does not invoke, import, or configure the upstream search tool.
+
+Graph retrieval commands also accept `--format text|json|jsonl`. `text` is the
+default; `jsonl` writes one record per line for streaming pipelines. `--json`
+is retained as a compatibility shortcut for `--format json`.
+
+### `kb context` and `kb similar`
+
+`context` is a bounded, read-only Wikilink neighborhood query:
+
+```bash
+kb context path/to/note.md --depth 1 --limit 20 --json
+```
+
+`similar` uses Jaccard similarity over incoming and outgoing Wikilink neighbors.
+It is structural similarity, not semantic similarity, and never invokes qmd or
+an embedding provider:
+
+```bash
+kb similar path/to/note.md --top 10 --json
+```
+
+`dedupe scan` is a read-only candidate report. It uses the same structural
+Jaccard signal, does not call qmd or an embedding provider, and never merges or
+deletes notes:
+
+```bash
+kb dedupe scan --threshold 0.50 --limit 100 --format jsonl
+```
+
+Review and planning are separate read-only steps. Edit the reviewed JSON to
+set `action` to `redirect`, then generate an explicit plan:
+
+```bash
+kb dedupe review candidates.json --format json > reviewed.json
+# manually set action=redirect only after checking both notes
+kb dedupe plan reviewed.json --format json > redirect-plan.json
+```
+
+The plan does not modify files. A future apply command must require an explicit
+write flag, preserve the source as a recoverable redirect/alias, and rewrite
+inbound links only after showing the plan.
+
+The current conservative apply skeleton only handles redirect stubs:
+
+```bash
+kb dedupe apply redirect-plan.json --format json       # dry-run, emits diff
+kb dedupe apply redirect-plan.json --write --format json
+```
+
+To move the source into the vault-local recoverable trash instead of leaving a
+redirect stub:
+
+```bash
+kb dedupe apply redirect-plan.json --write --source-after trash --format json
+```
+
+Permanent deletion is not supported.
+
+Every explicit write produces `.kb-tool-backup/manifest.json`. It records the
+before/after SHA-256 and backup path for each changed file. Rollback is also
+preview-first and refuses to overwrite a post-apply edit:
+
+The manifest also stores the migration statistics and a passed preflight
+snapshot, so the apply is auditable rather than only reporting final writes.
+If a later atomic write fails, already-committed files are restored from the
+same backup batch before the error is returned.
+
+```bash
+kb dedupe rollback .kb-tool-backup/manifest.json --format json
+kb dedupe rollback .kb-tool-backup/manifest.json --write --format json
+kb dedupe verify-manifest .kb-tool-backup/manifest.json --format json
+kb dedupe verify-fragments --format json
+```
+
+Merge is draft-only at this stage:
+
+```bash
+kb dedupe merge-draft redirect-plan.json --output .kb-tool-drafts
+```
+
+It creates reviewable Markdown drafts and never changes the source or target
+note.
+
+It never deletes the source note and does not merge body content. Frontmatter
+merging, alias YAML mutation, and destructive source actions remain blocked until
+those contracts are implemented.
+
+The current implementation supports conservative inbound link migration for
+Wikilinks and Markdown links, preserving aliases, embeds, heading/block
+fragments, fenced code, and inline code. It also creates `.kb-tool-backup/`
+files on explicit writes and provides plan verification:
+
+```bash
+kb dedupe verify redirect-plan.json --format json
+```
 
 ### `kb fix-zero` — Fix Zero-Link Files
 
