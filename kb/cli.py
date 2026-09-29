@@ -420,12 +420,17 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
 
 
 @cli.command("graph-colors")
+@click.option("--validate", "validate", is_flag=True, help="Validate theme contrast instead of rendering CSS")
 @click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
-def graph_colors(theme: str, output: Path | None) -> None:
+def graph_colors(theme: str, output: Path | None, validate: bool) -> None:
     """Generate an Obsidian Graph View CSS color snippet."""
-    from .graph_colors import THEMES, render_css, write_css
+    from .graph_colors import THEMES, render_css, validate_theme, write_css
     colors = THEMES[theme]
+    if validate:
+        import json
+        click.echo(json.dumps(validate_theme(colors), ensure_ascii=False, indent=2))
+        return
     if output is None:
         click.echo(render_css(colors), nl=False)
     else:

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 DEFAULT_COLORS = {
     "dark_node": "#7aa2f7", "light_node": "#2457a6",
@@ -42,6 +41,36 @@ def validate_colors(colors: dict[str, str]) -> None:
     invalid = {key for key, value in colors.items() if not HEX_COLOR.fullmatch(value)}
     if invalid:
         raise ValueError("colors must use #RRGGBB: " + ", ".join(sorted(invalid)))
+
+
+def _luminance(value: str) -> float:
+    rgb = [int(value[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [channel / 12.92 if channel <= 0.03928
+              else ((channel + 0.055) / 1.055) ** 2.4 for channel in rgb]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast_ratio(first: str, second: str) -> float:
+    """Return WCAG relative contrast ratio for two hex colors."""
+    if not HEX_COLOR.fullmatch(first) or not HEX_COLOR.fullmatch(second):
+        raise ValueError("colors must use #RRGGBB")
+    light, dark = sorted((_luminance(first), _luminance(second)), reverse=True)
+    return round((light + 0.05) / (dark + 0.05), 2)
+
+
+def validate_theme(colors: dict[str, str], minimum: float = 2.0) -> list[dict[str, object]]:
+    """Report low-contrast text/node and node/unresolved color pairs."""
+    validate_colors(colors)
+    checks = [("dark_text", "dark_node"), ("light_text", "light_node"),
+              ("dark_node", "dark_unresolved"), ("light_node", "light_unresolved")]
+    return [
+        {"first": first, "second": second,
+         "ratio": contrast_ratio(colors[first], colors[second]),
+         "ok": contrast_ratio(colors[first], colors[second]) >= minimum}
+        for first, second in checks
+    ]
+
+
 def render_css(colors: dict[str, str] | None = None) -> str:
     """Render CSS classes supported by Obsidian's Graph View plugin."""
     validate_colors(colors or {})

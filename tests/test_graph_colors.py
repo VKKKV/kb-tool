@@ -1,7 +1,6 @@
 from pathlib import Path
 
-from kb.graph_colors import render_css, write_css
-from kb.graph_colors import validate_colors
+from kb.graph_colors import render_css, validate_colors, write_css
 
 
 def test_render_css_contains_theme_graph_colors() -> None:
@@ -28,3 +27,10 @@ def test_themes_change_generated_palette() -> None:
     from kb.graph_colors import THEMES
     assert "#88c0d0" in render_css(THEMES["nord"])
     assert "#89b4fa" in render_css(THEMES["catppuccin"])
+
+
+def test_validate_theme_reports_contrast() -> None:
+    from kb.graph_colors import THEMES, validate_theme
+    rows = validate_theme(THEMES["default"])
+    assert len(rows) == 4
+    assert all("ratio" in row and "ok" in row for row in rows)
