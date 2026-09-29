@@ -62,6 +62,8 @@ kb graph
 # Generate an Obsidian Graph View color snippet
 kb graph-colors
 kb graph-colors --output .obsidian/snippets/kb-graph-colors.css
+kb graph-colors --theme nord
+kb graph-colors --theme catppuccin --output .obsidian/snippets/kb-graph-colors.css
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json
