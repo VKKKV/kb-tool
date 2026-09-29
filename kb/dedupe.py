@@ -606,6 +606,50 @@ def verify_fragments(repo: Path) -> list[dict[str, Any]]:
     return rows
 
 
+REDIRECT_RE = re.compile(
+    r"^>\s+Moved to\s+\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]\.??\s*$",
+    re.MULTILINE,
+)
+
+
+def verify_redirects(repo: Path) -> list[dict[str, Any]]:
+    """Validate redirect stubs and detect missing, ambiguous, and chained targets."""
+    from .core import FileIndex
+    if not (repo / ".git").exists():
+        return []
+    index = FileIndex(repo)
+    redirects: dict[str, str] = {}
+    rows: list[dict[str, Any]] = []
+    for source in index.md_files:
+        text = (repo / source).read_text(encoding="utf-8", errors="ignore")
+        match = REDIRECT_RE.search(text)
+        if not match:
+            continue
+        raw = match.group(1).strip()
+        status, candidates = index.resolve_wikilink_status(source, raw)
+        target = candidates[0] if status == "resolved" else raw
+        redirects[source] = target
+        rows.append({"source": source, "target": target, "status": status,
+                     "candidates": candidates, "ok": status == "resolved"})
+    for row in rows:
+        if not row["ok"]:
+            continue
+        target = row["target"]
+        seen = {row["source"]}
+        chained = target in redirects
+        while target in redirects:
+            if target in seen:
+                row.update(status="cycle", ok=False)
+                break
+            seen.add(target)
+            target = redirects[target]
+        if row["status"] == "cycle":
+            continue
+        if chained:
+            row.update(status="chain", ok=False, final_target=target)
+    return rows
+
+
 def merge_drafts(repo: Path, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Create merge drafts without modifying source or target notes."""
     drafts = []

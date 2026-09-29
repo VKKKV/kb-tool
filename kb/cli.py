@@ -405,6 +405,18 @@ def dedupe_verify_fragments(ctx: click.Context, output_format: str):
         raise click.exceptions.Exit(1)
 
 
+@dedupe.command("verify-redirects")
+@click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
+@click.pass_context
+def dedupe_verify_redirects(ctx: click.Context, output_format: str):
+    """Check redirect stubs for resolvable targets and chains."""
+    from .dedupe import verify_redirects
+    rows = verify_redirects(_index(ctx.obj["kb"]).repo)
+    _emit(rows, output_format, [])
+    if any(not row["ok"] for row in rows):
+        raise click.exceptions.Exit(1)
+
+
 @dedupe.command("merge-draft")
 @click.argument("plan_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--output", required=True, type=click.Path(file_okay=False, path_type=Path))

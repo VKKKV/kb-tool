@@ -238,7 +238,12 @@ kb dedupe rollback .kb-tool-backup/manifest.json --format json
 kb dedupe rollback .kb-tool-backup/manifest.json --write --format json
 kb dedupe verify-manifest .kb-tool-backup/manifest.json --format json
 kb dedupe verify-fragments --format json
+kb dedupe verify-redirects --format json
 ```
+
+`verify-redirects` checks tracked redirect stubs created by dedupe apply. It
+reports missing and ambiguous targets, self/cyclic redirects, and redirect
+chains. The command is read-only and exits with status 1 if any redirect fails.
 
 Merge is draft-only at this stage:
 
