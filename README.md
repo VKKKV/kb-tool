@@ -70,6 +70,7 @@ kb graph-groups --format json
 kb graph-groups --limit 20 --format jsonl
 kb graph-groups --format text
 kb graph-groups --theme nord --format text
+kb graph-groups --min-count 2 --format json --output graph-groups.json
 
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json

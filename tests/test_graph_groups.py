@@ -31,3 +31,15 @@ def test_suggest_groups_supports_singular_tag_and_theme(tmp_path: Path) -> None:
     tag = next(row for row in rows if row["name"] == "tag:linux")
     assert tag["obsidian_query"] == "tag:#linux"
     assert tag["color"] == "#b48ead"
+
+
+def test_group_metadata_and_min_count(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("---\ntype: concept\n---\n", encoding="utf-8")
+    (tmp_path / "b.md").write_text("---\ntype: concept\n---\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    rows = suggest_groups(FileIndex(tmp_path), min_count=2)
+    concept = next(row for row in rows if row["name"] == "type:concept")
+    assert concept["property_query"] == "type:concept"
+    assert concept["kb_command"] is None
+    assert all(row["count"] >= 2 for row in rows)

@@ -25,6 +25,15 @@ def _obsidian_query(kind: str, value: str) -> str:
     return ""
 
 
+def _property_query(kind: str, value: str) -> str | None:
+    return f"{kind}:{value}" if kind in {"type", "status"} else None
+
+
+def _kb_command(kind: str) -> str | None:
+    return {"orphan": "kb orphan", "hub": "kb graph -m hubs",
+            "broken-link": "kb scan"}.get(kind.removeprefix("health:"))
+
+
 def _frontmatter(text: str) -> dict[str, Any]:
     if not text.startswith("---\n") or "\n---\n" not in text[4:]:
         return {}
@@ -47,10 +56,13 @@ def _metadata_tags(metadata: dict[str, Any]) -> list[str]:
     return [str(value).lstrip("#").strip() for value in values if str(value).strip()]
 
 
-def suggest_groups(index: Any, limit: int = 50, theme: str = "default") -> list[dict[str, Any]]:
+def suggest_groups(index: Any, limit: int = 50, theme: str = "default",
+                   min_count: int = 1) -> list[dict[str, Any]]:
     """Return deterministic groups based on paths, metadata, and graph health."""
     if limit < 1:
         raise ValueError("limit must be >= 1")
+    if min_count < 1:
+        raise ValueError("min_count must be >= 1")
     if theme not in THEMES:
         raise ValueError(f"unknown graph color theme: {theme}")
     palette = THEMES[theme]
@@ -85,10 +97,15 @@ def suggest_groups(index: Any, limit: int = 50, theme: str = "default") -> list[
         if not paths:
             continue
         kind, _, value = name.partition(":")
+        if len(paths) < min_count:
+            continue
         rows.append({"name": name, "kind": kind, "value": value,
                      "query": name, "obsidian_query": _obsidian_query(kind, value),
+                     "property_query": _property_query(kind, value),
                      "color": group_colors.get(kind, palette["dark_node"]),
-                     "requires_kb_tool": kind == "health", "count": len(paths),
+                     "requires_kb_tool": kind == "health",
+                     "kb_command": _kb_command(value) if kind == "health" else None,
+                     "count": len(paths),
                      "paths": sorted(paths)})
     rows.sort(key=lambda row: (-row["count"], row["name"]))
     return rows[:limit]

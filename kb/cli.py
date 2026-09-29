@@ -18,7 +18,7 @@ Usage:
     kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
     kb graph-colors [--output PATH]
-    kb graph-groups [--limit 50] [--theme default|nord|catppuccin] [--format text|json|jsonl]
+    kb graph-groups [--limit 50] [--min-count 1] [--theme default|nord|catppuccin] [--format text|json|jsonl]
 """
 
 from __future__ import annotations
@@ -435,18 +435,34 @@ def graph_colors(theme: str, output: Path | None) -> None:
 
 @cli.command("graph-groups")
 @click.option("--limit", default=50, type=click.IntRange(min=1))
+@click.option("--min-count", default=1, type=click.IntRange(min=1))
 @click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.pass_context
-def graph_groups(ctx: click.Context, limit: int, theme: str, output_format: str) -> None:
+def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
+                 output_format: str, output: Path | None) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
     from .graph_groups import suggest_groups
-    rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme)
+    rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)
     text_lines = [
         f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}"
         for r in rows
     ]
-    _emit(rows, output_format, text_lines)
+    if output is None:
+        _emit(rows, output_format, text_lines)
+        return
+    import json
+    if output_format == "text":
+        content = "\n\n".join(text_lines) + ("\n" if text_lines else "")
+    elif output_format == "json":
+        content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
+    else:
+        content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+                        for row in rows)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(content, encoding="utf-8")
+    click.echo(f"wrote {output}")
 
 
 @dedupe.command("merge-draft")
