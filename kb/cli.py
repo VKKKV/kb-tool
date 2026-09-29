@@ -421,16 +421,36 @@ def dedupe_verify_redirects(ctx: click.Context, output_format: str):
 
 @cli.command("graph-colors")
 @click.option("--validate", "validate", is_flag=True, help="Validate theme contrast instead of rendering CSS")
+@click.option("--min-contrast", default=2.0, type=click.FloatRange(min=1.0), show_default=True)
 @click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
+@click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
-def graph_colors(theme: str, output: Path | None, validate: bool) -> None:
-    """Generate an Obsidian Graph View CSS color snippet."""
+def graph_colors(theme: str, output_format: str, output: Path | None,
+                 validate: bool, min_contrast: float) -> None:
+    """Generate or validate an Obsidian Graph View CSS color snippet."""
     from .graph_colors import THEMES, render_css, validate_theme, write_css
     colors = THEMES[theme]
     if validate:
         import json
-        click.echo(json.dumps(validate_theme(colors), ensure_ascii=False, indent=2))
+        rows = validate_theme(colors, min_contrast)
+        text_lines = [f"{r['first']} vs {r['second']}: {r['ratio']} ({'ok' if r['ok'] else 'FAIL'})" for r in rows]
+        if output_format == "text":
+            content = "\n".join(text_lines) + "\n"
+        elif output_format == "json":
+            content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
+        else:
+            content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n" for row in rows)
+        if output is None:
+            click.echo(content, nl=False)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(content, encoding="utf-8")
+            click.echo(f"wrote {output}")
+        if any(not row["ok"] for row in rows):
+            raise click.exceptions.Exit(1)
         return
+    if output_format != "json":
+        raise click.UsageError("--format is only available with --validate")
     if output is None:
         click.echo(render_css(colors), nl=False)
     else:

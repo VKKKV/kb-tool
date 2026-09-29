@@ -34,3 +34,8 @@ def test_validate_theme_reports_contrast() -> None:
     rows = validate_theme(THEMES["default"])
     assert len(rows) == 4
     assert all("ratio" in row and "ok" in row for row in rows)
+
+
+def test_validate_theme_respects_threshold() -> None:
+    from kb.graph_colors import THEMES, validate_theme
+    assert any(not row["ok"] for row in validate_theme(THEMES["default"], minimum=10))
