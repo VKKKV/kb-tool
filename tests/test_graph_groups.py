@@ -7,7 +7,7 @@ from kb.graph_groups import suggest_groups
 
 def test_suggest_groups_uses_metadata_and_health(tmp_path: Path) -> None:
     (tmp_path / "a.md").write_text(
-        "---\ntags: [python]\ntype: concept\n---\n[[b]] [[missing]]\n", encoding="utf-8")
+        "---\ntags: python\ntype: concept\n---\n[[b]] [[missing]]\n", encoding="utf-8")
     (tmp_path / "b.md").write_text("# B\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
@@ -20,3 +20,14 @@ def test_suggest_groups_uses_metadata_and_health(tmp_path: Path) -> None:
     tag = next(row for row in rows if row["name"] == "tag:python")
     assert tag["obsidian_query"] == "tag:#python"
     assert tag["color"].startswith("#")
+    assert tag["requires_kb_tool"] is False
+
+
+def test_suggest_groups_supports_singular_tag_and_theme(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("---\ntag: '#linux'\n---\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    rows = suggest_groups(FileIndex(tmp_path), theme="nord")
+    tag = next(row for row in rows if row["name"] == "tag:linux")
+    assert tag["obsidian_query"] == "tag:#linux"
+    assert tag["color"] == "#b48ead"

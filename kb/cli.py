@@ -18,7 +18,7 @@ Usage:
     kb dedupe paragraphs [--min-chars 40] [--format json|jsonl]
     kb stats
     kb graph-colors [--output PATH]
-    kb graph-groups [--limit 50] [--format json|jsonl]
+    kb graph-groups [--limit 50] [--theme default|nord|catppuccin] [--format text|json|jsonl]
 """
 
 from __future__ import annotations
@@ -435,13 +435,17 @@ def graph_colors(theme: str, output: Path | None) -> None:
 
 @cli.command("graph-groups")
 @click.option("--limit", default=50, type=click.IntRange(min=1))
+@click.option("--theme", type=click.Choice(["default", "nord", "catppuccin"]), default="default")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
 @click.pass_context
-def graph_groups(ctx: click.Context, limit: int, output_format: str) -> None:
+def graph_groups(ctx: click.Context, limit: int, theme: str, output_format: str) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
     from .graph_groups import suggest_groups
-    rows = suggest_groups(_index(ctx.obj["kb"]), limit)
-    text_lines = [f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}" for r in rows]
+    rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme)
+    text_lines = [
+        f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}"
+        for r in rows
+    ]
     _emit(rows, output_format, text_lines)
 
 

@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from .graph import build_graph
+from .graph_colors import THEMES
 
 GROUP_COLORS = {"path": "#7aa2f7", "tag": "#bb9af7", "type": "#73daca",
                 "status": "#e0af68", "health": "#f7768e"}
@@ -36,16 +37,32 @@ def _add(groups: dict[str, set[str]], name: str, path: str) -> None:
     groups.setdefault(name, set()).add(path)
 
 
-def suggest_groups(index: Any, limit: int = 50) -> list[dict[str, Any]]:
+def _metadata_tags(metadata: dict[str, Any]) -> list[str]:
+    """Normalize scalar/list tags and the singular tag frontmatter key."""
+    values = metadata.get("tags", metadata.get("tag", []))
+    if isinstance(values, (str, int, float)):
+        values = [values]
+    if not isinstance(values, list):
+        return []
+    return [str(value).lstrip("#").strip() for value in values if str(value).strip()]
+
+
+def suggest_groups(index: Any, limit: int = 50, theme: str = "default") -> list[dict[str, Any]]:
     """Return deterministic groups based on paths, metadata, and graph health."""
     if limit < 1:
         raise ValueError("limit must be >= 1")
+    if theme not in THEMES:
+        raise ValueError(f"unknown graph color theme: {theme}")
+    palette = THEMES[theme]
+    group_colors = {"path": palette["dark_node"], "tag": palette["dark_tag"],
+                    "type": palette["dark_attachment"], "status": palette["dark_highlight"],
+                    "health": palette["dark_unresolved"]}
     groups: dict[str, set[str]] = {}
     for path in sorted(index.md_files):
         _add(groups, f"path:{Path(path).parent.as_posix()}", path)
         metadata = _frontmatter((index.repo / path).read_text(encoding="utf-8", errors="ignore"))
-        for tag in metadata.get("tags", []) if isinstance(metadata.get("tags"), list) else []:
-            _add(groups, f"tag:{str(tag).lstrip('#')}", path)
+        for tag in _metadata_tags(metadata):
+            _add(groups, f"tag:{tag}", path)
         for field in ("type", "status"):
             value = metadata.get(field)
             if value is not None and not isinstance(value, (dict, list)):
@@ -70,7 +87,8 @@ def suggest_groups(index: Any, limit: int = 50) -> list[dict[str, Any]]:
         kind, _, value = name.partition(":")
         rows.append({"name": name, "kind": kind, "value": value,
                      "query": name, "obsidian_query": _obsidian_query(kind, value),
-                     "color": GROUP_COLORS.get(kind, "#7aa2f7"), "count": len(paths),
+                     "color": group_colors.get(kind, palette["dark_node"]),
+                     "requires_kb_tool": kind == "health", "count": len(paths),
                      "paths": sorted(paths)})
     rows.sort(key=lambda row: (-row["count"], row["name"]))
     return rows[:limit]
