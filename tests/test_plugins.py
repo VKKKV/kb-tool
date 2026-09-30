@@ -130,8 +130,12 @@ def test_analyze_cli_runs_installed_builtin_plugin_read_only(tmp_path) -> None:
     assert sorted(path.name for path in tmp_path.glob("*.md")) == ["a.md", "b.md"]
 
 
-def test_analyze_cli_unknown_plugin_is_a_controlled_error() -> None:
-    result = CliRunner().invoke(cli, ["analyze", "missing-analyzer"])
+def test_analyze_cli_unknown_plugin_is_a_controlled_error(tmp_path: Path) -> None:
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+
+    result = CliRunner().invoke(
+        cli, ["--kb", str(tmp_path), "analyze", "missing-analyzer"]
+    )
 
     assert result.exit_code == 1
     assert "unknown analyzer plugin" in result.output
