@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from importlib.metadata import EntryPoint
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -136,3 +137,38 @@ def test_analyze_cli_unknown_plugin_is_a_controlled_error() -> None:
     assert "unknown analyzer plugin" in result.output
     assert "kb-link-stats" in result.output
     assert "Traceback" not in result.output
+
+
+def test_analyze_cli_discovers_separately_installed_entry_point(
+    tmp_path: Path, monkeypatch
+) -> None:
+    plugin_root = tmp_path / "plugin-install"
+    plugin_root.mkdir()
+    (plugin_root / "external_demo.py").write_text(
+        "def analyze(index):\n    return {'markdown_files': len(index.md_files)}\n",
+        encoding="utf-8",
+    )
+    dist_info = plugin_root / "external_demo-0.0.1.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: external-demo\nVersion: 0.0.1\n",
+        encoding="utf-8",
+    )
+    (dist_info / "entry_points.txt").write_text(
+        "[kb_tool.analyzers]\nexternal-demo = external_demo:analyze\n",
+        encoding="utf-8",
+    )
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "one.md").write_text("# One\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(vault), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(vault), "add", "."], check=True)
+    monkeypatch.syspath_prepend(str(plugin_root))
+
+    result = CliRunner().invoke(
+        cli, ["--kb", str(vault), "analyze", "external-demo"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {"markdown_files": 1}
