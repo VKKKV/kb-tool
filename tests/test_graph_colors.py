@@ -232,7 +232,8 @@ def test_graph_colors_uses_kb_local_config_and_cli_overrides(tmp_path: Path) -> 
     assert result.exit_code == 0, result.output
     import json
     report = json.loads(result.output)
-    assert report["minimum_contrast"] == 1
+    assert report["minimum_contrast"] == 1.0
+    assert isinstance(report["minimum_contrast"], float)
 
     overridden = CliRunner().invoke(
         cli,
@@ -272,3 +273,17 @@ def test_graph_colors_rejects_invalid_config_with_key_and_path(tmp_path: Path) -
     assert result.exit_code == 1
     assert str(config) in result.output
     assert "graph.min_contrast" in result.output
+
+
+def test_invalid_config_is_not_hidden_by_cli_override(tmp_path: Path) -> None:
+    config = tmp_path / "bad.yaml"
+    config.write_text("graph:\n  min_contrast: .nan\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["--config", str(config), "graph-colors", "--min-contrast", "1"],
+    )
+
+    assert result.exit_code == 1
+    assert "graph.min_contrast" in result.output
+    assert "Traceback" not in result.output

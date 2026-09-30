@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from kb.config import ConfigError, ConfigPathError, load_config
+from kb.core import effective_kb_root
 
 
 def test_missing_auto_config_is_optional(tmp_path: Path) -> None:
@@ -136,3 +137,83 @@ def test_cli_reports_invalid_auto_config_without_traceback(tmp_path: Path) -> No
     assert result.exit_code == 1
     assert "graph.unknown" in result.output
     assert "Traceback" not in result.output
+
+
+def test_kb_root_precedence_and_tilde_expansion(tmp_path: Path, monkeypatch) -> None:
+    from click.testing import CliRunner
+
+    from kb.cli import cli
+
+    explicit_root = tmp_path / "explicit"
+    env_root = tmp_path / "from-env"
+    explicit_root.mkdir()
+    env_root.mkdir()
+    (explicit_root / ".kb-tool.yaml").write_text(
+        "graph:\n  theme: nord\n", encoding="utf-8"
+    )
+    (env_root / ".kb-tool.yaml").write_text(
+        "graph:\n  theme: catppuccin\n", encoding="utf-8"
+    )
+
+    runner = CliRunner()
+    chosen = runner.invoke(
+        cli,
+        ["--kb", str(explicit_root), "graph-colors"],
+        env={"KB_ROOT": str(env_root)},
+    )
+    assert chosen.exit_code == 0, chosen.output
+    assert ".theme-dark .graph-view.color-fill { color: #88c0d0; }" in chosen.output
+
+    from_env = runner.invoke(cli, ["graph-colors"], env={"KB_ROOT": str(env_root)})
+    assert from_env.exit_code == 0, from_env.output
+    assert ".theme-dark .graph-view.color-fill { color: #89b4fa; }" in from_env.output
+
+    home = tmp_path / "home"
+    tilde_root = home / "vault"
+    tilde_root.mkdir(parents=True)
+    (tilde_root / ".kb-tool.yaml").write_text(
+        "graph:\n  theme: nord\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("HOME", str(home))
+    tilde = runner.invoke(cli, ["--kb", "~/vault", "graph-colors"])
+    assert tilde.exit_code == 0, tilde.output
+    assert ".theme-dark .graph-view.color-fill { color: #88c0d0; }" in tilde.output
+
+
+def test_empty_kb_root_env_uses_default(monkeypatch) -> None:
+    from pathlib import Path
+
+    monkeypatch.setenv("KB_ROOT", "")
+    assert effective_kb_root() == Path.home() / "code" / "knowledge"
+
+
+@pytest.mark.parametrize(
+    ("config_arg", "config_kind", "exit_code"),
+    [
+        ("missing.yaml", "missing", 2),
+        ("directory.yaml", "directory", 2),
+        (".kb-tool.yaml", "malformed", 1),
+    ],
+)
+def test_cli_config_path_errors_are_controlled(
+    tmp_path: Path, config_arg: str, config_kind: str, exit_code: int
+) -> None:
+    from click.testing import CliRunner
+
+    from kb.cli import cli
+
+    config = tmp_path / config_arg
+    if config_kind == "directory":
+        config.mkdir()
+    elif config_kind == "malformed":
+        config.write_text("graph: [\n", encoding="utf-8")
+
+    args = ["--config", str(config), "graph-colors"]
+    if config_kind == "malformed":
+        args = ["--kb", str(tmp_path), "graph-colors"]
+    result = CliRunner().invoke(cli, args)
+
+    assert result.exit_code == exit_code
+    assert "Traceback" not in result.output
+    if config_kind != "missing":
+        assert str(config) in result.output
