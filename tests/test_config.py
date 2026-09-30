@@ -187,6 +187,38 @@ def test_empty_kb_root_env_uses_default(monkeypatch) -> None:
     assert effective_kb_root() == Path.home() / "code" / "knowledge"
 
 
+def test_graph_groups_uses_same_expanded_root_for_config_and_index(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import subprocess
+
+    from click.testing import CliRunner
+
+    from kb.cli import cli
+
+    home = tmp_path / "home"
+    vault = home / "vault"
+    vault.mkdir(parents=True)
+    (vault / ".kb-tool.yaml").write_text("graph_groups:\n  theme: nord\n", encoding="utf-8")
+    (vault / "from-vault.md").write_text("---\ntags: from-vault\n---\n[[target]]\n")
+    (vault / "target.md").write_text("# Target\n")
+    subprocess.run(["git", "-C", str(vault), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(vault), "add", "*.md"], check=True)
+    monkeypatch.setenv("HOME", str(home))
+
+    result = CliRunner().invoke(
+        cli, ["--kb", "~/vault", "graph-groups", "--format", "json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    import json
+
+    rows = json.loads(result.output)
+    tag = next(row for row in rows if row["name"] == "tag:from-vault")
+    assert tag["paths"] == ["from-vault.md"]
+    assert tag["color"] == "#b48ead"
+
+
 @pytest.mark.parametrize(
     ("config_arg", "config_kind", "exit_code"),
     [
