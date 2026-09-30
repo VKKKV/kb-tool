@@ -79,9 +79,12 @@ kb graph-groups --limit 20 --format jsonl
 kb graph-groups --format text
 kb graph-groups --theme nord --format text
 kb graph-groups --min-count 2 --format json --output graph-groups.json
+kb graph-groups --format csv --output graph-groups.csv
+kb graph-groups --format markdown --output graph-groups.md
 
 JSON output remains a top-level array of group suggestions for compatibility;
-JSONL remains one group suggestion per line.
+JSONL remains one group suggestion per line. CSV preserves each field and stores
+`paths` as a JSON array; Markdown renders a table with pipes and newlines escaped.
 
 Graph command defaults can be configured in `.kb-tool.yaml` at the effective KB
 root. Use `--config PATH` to select another file; it replaces auto-discovery.

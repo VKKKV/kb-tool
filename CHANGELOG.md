@@ -46,11 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `.kb-tool.yaml` configuration for `graph-colors` and `graph-groups`, with CLI overrides
+- CSV and Markdown exports for Obsidian graph-group suggestions
 - GitHub Actions test matrix for Python 3.11–3.13
 - Development YAML typing stubs and scoped mypy checks in CI
 
 ### Planned
 
 - Interactive mode with rich
-- Export to various formats (JSON, CSV, Markdown)
 - Plugin system for custom analyzers

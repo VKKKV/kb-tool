@@ -206,7 +206,6 @@ def graph(ctx: click.Context, mode: str, top_n: int, min_links: int, edges: bool
 def neighbors(ctx: click.Context, paths: tuple[str, ...], depth: int, direction: str,
               json_out: bool, output_format: str, limit: int | None):
     """列出 note 的 Wikilink 邻居；不依赖任何检索引擎。"""
-    import json
 
     from .graph import build_graph
     from .graph import neighbors as graph_neighbors
@@ -245,7 +244,6 @@ def expand(ctx: click.Context, from_stdin: bool, depth: int, direction: str, lim
 def context(ctx: click.Context, path: str, depth: int, limit: int, json_out: bool,
             output_format: str):
     """输出 note 周围的 Wikilink context（不包含正文）。"""
-    import json
 
     from .graph import build_graph
     from .graph import context as graph_context
@@ -262,7 +260,6 @@ def context(ctx: click.Context, path: str, depth: int, limit: int, json_out: boo
 @click.pass_context
 def similar(ctx: click.Context, path: str, top: int, json_out: bool, output_format: str):
     """按 Wikilink 邻居 Jaccard 查找结构相似 note（不是语义相似）。"""
-    import json
 
     from .graph import build_graph
     from .graph import similar as graph_similar
@@ -398,6 +395,7 @@ def dedupe_verify(ctx: click.Context, plan_path: Path, output_format: str):
 def dedupe_rollback(ctx: click.Context, manifest_path: Path, write: bool, output_format: str):
     """Preview or restore a manifest, refusing changed post-apply files."""
     import json
+
     from .dedupe import rollback_manifest
     index = _index(ctx.obj["kb"])
     rows = rollback_manifest(index.repo, json.loads(manifest_path.read_text(encoding="utf-8")), write)
@@ -413,6 +411,7 @@ def dedupe_rollback(ctx: click.Context, manifest_path: Path, write: bool, output
 def dedupe_verify_manifest(ctx: click.Context, manifest_path: Path, output_format: str):
     """Verify the actual post-apply and backup bytes recorded by a manifest."""
     import json
+
     from .dedupe import verify_manifest
     index = _index(ctx.obj["kb"])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -500,7 +499,11 @@ def graph_colors(ctx: click.Context, theme: str, output_format: str, output: Pat
 @click.option("--limit", default=50, type=click.IntRange(min=1))
 @click.option("--min-count", default=1, type=click.IntRange(min=1))
 @click.option("--theme", type=click.Choice(THEME_NAMES), default="default")
-@click.option("--format", "output_format", type=click.Choice(["text", "json", "jsonl"]), default="json")
+@click.option(
+    "--format", "output_format",
+    type=click.Choice(["text", "json", "jsonl", "csv", "markdown"]),
+    default="json",
+)
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.pass_context
 def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
@@ -514,7 +517,7 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
         limit = groups_config.get("limit", limit)
     if ctx.get_parameter_source("min_count") != click.core.ParameterSource.COMMANDLINE:
         min_count = groups_config.get("min_count", min_count)
-    from .graph_groups import suggest_groups
+    from .graph_groups import render_groups_csv, render_groups_markdown, suggest_groups
 
     rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)
     text_lines = [
@@ -522,12 +525,18 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
         for r in rows
     ]
     if output is None:
-        if output_format == "json":
-            import json
+        if output_format in {"json", "csv", "markdown"}:
+            if output_format == "json":
+                import json
 
-            click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
-            return
-        _emit(rows, output_format, text_lines)
+                rendered = json.dumps(rows, ensure_ascii=False, indent=2)
+            elif output_format == "csv":
+                rendered = render_groups_csv(rows)
+            else:
+                rendered = render_groups_markdown(rows)
+            click.echo(rendered, nl=output_format == "json")
+        else:
+            _emit(rows, output_format, text_lines)
         return
     import json
 
@@ -535,6 +544,10 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
         content = "\n\n".join(text_lines) + ("\n" if text_lines else "")
     elif output_format == "json":
         content = json.dumps(rows, ensure_ascii=False, indent=2) + "\n"
+    elif output_format == "csv":
+        content = render_groups_csv(rows)
+    elif output_format == "markdown":
+        content = render_groups_markdown(rows)
     else:
         content = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
                         for row in rows)

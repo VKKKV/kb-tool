@@ -1,3 +1,4 @@
+import csv
 import json
 import subprocess
 from pathlib import Path
@@ -83,6 +84,64 @@ def test_graph_groups_cli_jsonl_remains_row_oriented(tmp_path: Path) -> None:
     rows = [json.loads(line) for line in result.output.splitlines()]
     assert rows
     assert all("name" in row and "count" in row for row in rows)
+
+
+def test_graph_group_export_helpers_escape_csv_and_markdown() -> None:
+    from kb.graph_groups import render_groups_csv, render_groups_markdown
+
+    row = {
+        "name": "tag:foo|bar",
+        "kind": "tag",
+        "value": "foo|bar",
+        "query": "tag:foo|bar",
+        "obsidian_query": "tag:#foo|bar",
+        "property_query": None,
+        "color": "#123456",
+        "requires_kb_tool": False,
+        "kb_command": None,
+        "count": 2,
+        "paths": ["a,one.md", "b|two.md"],
+    }
+
+    csv_text = render_groups_csv([row])
+    csv_rows = list(csv.DictReader(csv_text.splitlines()))
+    assert len(csv_rows) == 1
+    assert csv_rows[0]["value"] == "foo|bar"
+    assert json.loads(csv_rows[0]["paths"]) == row["paths"]
+    assert csv_rows[0]["property_query"] == ""
+
+    markdown = render_groups_markdown([row])
+    assert "foo\\|bar" in markdown
+    assert "b\\|two.md" in markdown
+    assert markdown.splitlines()[0].startswith("| name | kind | value |")
+    assert render_groups_markdown([]) == ""
+
+
+def test_graph_groups_cli_csv_and_markdown_outputs(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("---\ntags: linux\n---\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+
+    csv_result = CliRunner().invoke(
+        cli, ["--kb", str(tmp_path), "graph-groups", "--format", "csv"]
+    )
+    assert csv_result.exit_code == 0, csv_result.output
+    assert csv_result.output.startswith("name,kind,value,query,")
+    assert "tag:linux" in csv_result.output
+
+    output = tmp_path / "exports" / "groups.md"
+    markdown_result = CliRunner().invoke(
+        cli,
+        [
+            "--kb", str(tmp_path), "graph-groups", "--format", "markdown",
+            "--output", str(output),
+        ],
+    )
+    assert markdown_result.exit_code == 0, markdown_result.output
+    assert markdown_result.output == f"wrote {output}\n"
+    markdown = output.read_text(encoding="utf-8")
+    assert markdown.startswith("| name | kind | value |")
+    assert "tag:linux" in markdown
 
 
 def test_graph_groups_uses_config_defaults_but_cli_wins(tmp_path: Path) -> None:

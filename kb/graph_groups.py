@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import csv
+import io
+import json
 import re
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import yaml
 
@@ -28,6 +31,57 @@ class GroupSuggestion(TypedDict):
     kb_command: str | None
     count: int
     paths: list[str]
+
+
+GROUP_EXPORT_FIELDS = (
+    "name", "kind", "value", "query", "obsidian_query", "property_query",
+    "color", "requires_kb_tool", "kb_command", "count", "paths",
+)
+
+
+def render_groups_csv(rows: list[GroupSuggestion]) -> str:
+    """Serialize group suggestions as CSV, encoding paths as a JSON array."""
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(GROUP_EXPORT_FIELDS)
+    for row in rows:
+        values: dict[str, str | bool | int] = {}
+        for key, value in row.items():
+            if isinstance(value, list):
+                values[key] = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            elif value is None:
+                values[key] = ""
+            elif isinstance(value, (str, bool, int)):
+                values[key] = str(value).lower() if isinstance(value, bool) else str(value)
+            else:
+                values[key] = str(value)
+        writer.writerow([values[key] for key in GROUP_EXPORT_FIELDS])
+    return output.getvalue()
+
+
+def render_groups_markdown(rows: list[GroupSuggestion]) -> str:
+    """Render a Markdown table with escaped pipes and line breaks."""
+    if not rows:
+        return ""
+    header = "| " + " | ".join(GROUP_EXPORT_FIELDS) + " |"
+    separator = "| " + " | ".join("---" for _ in GROUP_EXPORT_FIELDS) + " |"
+    lines = [header, separator]
+    for row in rows:
+        cells = []
+        for key, value in row.items():
+            if value is None:
+                text = ""
+            elif isinstance(value, list):
+                text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            elif isinstance(value, bool):
+                text = str(value).lower()
+            else:
+                text = str(value)
+            text = text.replace("\\", "\\\\").replace("|", "\\|")
+            text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+            cells.append(text)
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
 
 
 def _obsidian_query(kind: str, value: str) -> str:
@@ -112,7 +166,7 @@ def suggest_groups(index: Any, limit: int = 50, theme: str = "default",
         rows.append({"name": name, "kind": kind, "value": value,
                      "query": name, "obsidian_query": _obsidian_query(kind, value),
                      "property_query": _property_query(kind, value),
-                     "color": group_colors.get(kind, group_colors["path"]),
+                     "color": cast(str, group_colors.get(kind, group_colors["path"])),
                      "requires_kb_tool": kind == "health",
                      "kb_command": _kb_command(value) if kind == "health" else None,
                      "count": len(paths),
