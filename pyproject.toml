@@ -36,6 +36,9 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.5",
 ]
+interactive = [
+    "rich>=13",
+]
 
 [project.urls]
 Homepage = "https://github.com/VKKKV/kb-tool"

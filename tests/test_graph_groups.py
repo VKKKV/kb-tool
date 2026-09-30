@@ -144,6 +144,67 @@ def test_graph_groups_cli_csv_and_markdown_outputs(tmp_path: Path) -> None:
     assert "tag:linux" in markdown
 
 
+def test_graph_groups_interactive_renders_and_exits(monkeypatch) -> None:
+    from kb.cli import _browse_graph_groups
+
+    class FakeConsole:
+        def __init__(self) -> None:
+            self.items = []
+
+        def print(self, item) -> None:
+            self.items.append(item)
+
+    class FakeTable:
+        def __init__(self, title: str | None = None) -> None:
+            self.title = title
+            self.columns = []
+            self.rows = []
+
+        def add_column(self, name: str, **kwargs) -> None:
+            self.columns.append(name)
+
+        def add_row(self, *values: str) -> None:
+            self.rows.append(values)
+
+    class FakeIntPrompt:
+        @staticmethod
+        def ask(_prompt: str, default: int = 0) -> int:
+            return 0
+
+    import rich.console
+    import rich.prompt
+    import rich.table
+
+    console = FakeConsole()
+    monkeypatch.setattr(rich.console, "Console", lambda: console)
+    monkeypatch.setattr(rich.prompt, "IntPrompt", FakeIntPrompt)
+    monkeypatch.setattr(rich.table, "Table", FakeTable)
+
+    _browse_graph_groups([
+        {
+            "name": "tag:linux", "kind": "tag", "value": "linux", "query": "tag:linux",
+            "obsidian_query": "tag:#linux", "property_query": None, "color": "#123456",
+            "requires_kb_tool": False, "kb_command": None, "count": 1, "paths": ["a.md"],
+        }
+    ])
+
+    assert len(console.items) == 1
+    assert isinstance(console.items[0], FakeTable)
+    assert console.items[0].rows == [("1", "tag:linux", "1", "#123456")]
+
+
+def test_graph_groups_interactive_rejects_format_and_output(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("# A\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    result = CliRunner().invoke(
+        cli,
+        ["--kb", str(tmp_path), "graph-groups", "--interactive", "--format", "json"],
+    )
+    assert result.exit_code == 2
+    assert "cannot be combined" in result.output
+
+
 def test_graph_groups_uses_config_defaults_but_cli_wins(tmp_path: Path) -> None:
     (tmp_path / "a.md").write_text(
         "---\ntags: linux\n---\n[[b]]\n", encoding="utf-8"

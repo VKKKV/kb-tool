@@ -504,10 +504,11 @@ def graph_colors(ctx: click.Context, theme: str, output_format: str, output: Pat
     type=click.Choice(["text", "json", "jsonl", "csv", "markdown"]),
     default="json",
 )
+@click.option("--interactive", is_flag=True, help="Browse suggestions in a read-only TUI")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.pass_context
 def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
-                 output_format: str, output: Path | None) -> None:
+                 output_format: str, interactive: bool, output: Path | None) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
     config = _load_command_config(ctx)
     groups_config = config.get("graph_groups", {})
@@ -517,9 +518,17 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
         limit = groups_config.get("limit", limit)
     if ctx.get_parameter_source("min_count") != click.core.ParameterSource.COMMANDLINE:
         min_count = groups_config.get("min_count", min_count)
+    if interactive and (
+        ctx.get_parameter_source("output_format") == click.core.ParameterSource.COMMANDLINE
+        or output is not None
+    ):
+        raise click.UsageError("--interactive cannot be combined with --format or --output")
     from .graph_groups import render_groups_csv, render_groups_markdown, suggest_groups
 
     rows = suggest_groups(_index(ctx.obj["kb"]), limit, theme, min_count)
+    if interactive:
+        _browse_graph_groups(rows)
+        return
     text_lines = [
         f"{r['name']}\n  Query: {r['obsidian_query']}\n  Color: {r['color']}\n  Count: {r['count']}"
         for r in rows
@@ -554,6 +563,46 @@ def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(content, encoding="utf-8")
     click.echo(f"wrote {output}")
+
+
+def _browse_graph_groups(rows: list[dict]) -> None:
+    """Interactively inspect graph group suggestions without modifying the vault."""
+    try:
+        from rich.console import Console
+        from rich.prompt import IntPrompt
+        from rich.table import Table
+    except ImportError as exc:
+        raise click.ClickException(
+            "interactive mode requires Rich; install with `pip install kb-tool[interactive]`"
+        ) from exc
+
+    console = Console()
+    table = Table(title="Obsidian Graph View Groups")
+    table.add_column("#", justify="right")
+    table.add_column("Group")
+    table.add_column("Count", justify="right")
+    table.add_column("Color")
+    for number, row in enumerate(rows, start=1):
+        table.add_row(str(number), row["name"], str(row["count"]), row["color"])
+    console.print(table)
+    if not rows:
+        return
+
+    while True:
+        choice = IntPrompt.ask("Select a group number (0 to exit)", default=0)
+        if choice == 0:
+            return
+        if not 1 <= choice <= len(rows):
+            console.print(f"Enter a number from 1 to {len(rows)}, or 0 to exit.")
+            continue
+        row = rows[choice - 1]
+        detail = Table(title=row["name"])
+        detail.add_column("Field")
+        detail.add_column("Value")
+        for key, value in row.items():
+            display = ", ".join(value) if isinstance(value, list) else str(value)
+            detail.add_row(key, display)
+        console.print(detail)
 
 
 @dedupe.command("merge-draft")

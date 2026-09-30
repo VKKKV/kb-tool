@@ -106,6 +106,16 @@ KB root is selected by `--kb`, then `KB_ROOT`, then the built-in default.
 The `graph` section configures `graph-colors`; it does not configure the
 separate `kb graph` analysis command.
 
+Install `kb-tool[interactive]` to enable the optional Rich-based group browser:
+
+```bash
+pip install 'kb-tool[interactive]'
+kb graph-groups --interactive
+```
+
+Select a group by number to inspect its query and member paths; enter `0` to exit.
+The browser is read-only and cannot be combined with `--format` or `--output`.
+
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json
 printf '[{"path":"path/to/note.md","score":0.9}]' \

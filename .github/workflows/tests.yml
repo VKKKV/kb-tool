@@ -26,10 +26,10 @@ jobs:
         with:
           enable-cache: true
       - name: Install development dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev --group dev --extra interactive
       - name: Run tests
         run: uv run pytest -q
       - name: Lint changed package and config tests
-        run: uv run ruff check kb/config.py kb/core.py kb/graph_colors.py tests/test_config.py tests/test_graph_colors.py tests/test_graph_groups.py
+        run: uv run ruff check kb/config.py kb/core.py kb/graph_colors.py kb/graph_groups.py tests/test_config.py tests/test_graph_colors.py tests/test_graph_groups.py
       - name: Type-check configuration and palette modules
         run: uv run mypy --python-executable .venv/bin/python kb/config.py kb/graph_colors.py kb/core.py

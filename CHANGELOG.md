@@ -49,8 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CSV and Markdown exports for Obsidian graph-group suggestions
 - GitHub Actions test matrix for Python 3.11–3.13
 - Development YAML typing stubs and scoped mypy checks in CI
+- Optional Rich interactive browser for graph-group suggestions
 
 ### Planned
 
-- Interactive mode with rich
 - Plugin system for custom analyzers
