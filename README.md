@@ -262,22 +262,23 @@ kb dedupe review candidates.json --format json > reviewed.json
 kb dedupe plan reviewed.json --format json > redirect-plan.json
 ```
 
-The plan does not modify files. A future apply command must require an explicit
-write flag, preserve the source as a recoverable redirect/alias, and rewrite
-inbound links only after showing the plan.
+The plan does not modify files. Apply requires explicit `--write`, `--confirm`,
+and an interactive terminal confirmation before it changes files. It preserves
+the source as a recoverable redirect/alias and rewrites inbound links only
+after showing the plan.
 
 The current conservative apply skeleton only handles redirect stubs:
 
 ```bash
 kb dedupe apply redirect-plan.json --format json       # dry-run, emits diff
-kb dedupe apply redirect-plan.json --write --format json
+kb dedupe apply redirect-plan.json --write --confirm --format json
 ```
 
 To move the source into the vault-local recoverable trash instead of leaving a
 redirect stub:
 
 ```bash
-kb dedupe apply redirect-plan.json --write --source-after trash --format json
+kb dedupe apply redirect-plan.json --write --confirm --source-after trash --format json
 ```
 
 Permanent deletion is not supported.
@@ -293,7 +294,7 @@ same backup batch before the error is returned.
 
 ```bash
 kb dedupe rollback .kb-tool-backup/manifest.json --format json
-kb dedupe rollback .kb-tool-backup/manifest.json --write --format json
+kb dedupe rollback .kb-tool-backup/manifest.json --write --confirm --format json
 kb dedupe verify-manifest .kb-tool-backup/manifest.json --format json
 kb dedupe verify-fragments --format json
 kb dedupe verify-redirects --format json

@@ -351,14 +351,23 @@ def dedupe_plan(input_path: Path, output_format: str):
 @click.option("--write", is_flag=True, help="Actually write redirect stubs; default is dry-run")
 @click.option("--source-after", type=click.Choice(["keep", "redirect", "trash"]), default="redirect")
 @click.option("--require-clean-git", is_flag=True, help="Refuse writes when the vault worktree is dirty")
+@click.option("--confirm", is_flag=True, help="Confirm this operation in addition to --write")
 @click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
 @click.pass_context
 def dedupe_apply(ctx: click.Context, plan_path: Path, write: bool, source_after: str,
-                 require_clean_git: bool, output_format: str):
+                 require_clean_git: bool, confirm: bool, output_format: str):
     """Preview or explicitly write conservative redirect plans."""
     from .dedupe import apply_plan
     index = _index(ctx.obj["kb"])
     plan = _read_records(plan_path)
+    if write:
+        if not confirm:
+            raise click.UsageError("--write requires --confirm")
+        if not _confirm_write(
+            f"Apply this plan: write {len(plan)} redirect operation(s)?"
+        ):
+            click.echo("cancelled")
+            return
     try:
         rows = apply_plan(index.repo, plan, write=write, source_after=source_after,
                           require_clean_git=require_clean_git)
@@ -390,15 +399,26 @@ def dedupe_verify(ctx: click.Context, plan_path: Path, output_format: str):
 @dedupe.command("rollback")
 @click.argument("manifest_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--write", is_flag=True)
+@click.option("--confirm", is_flag=True, help="Confirm rollback in addition to --write")
 @click.option("--format", "output_format", type=click.Choice(["json", "jsonl"]), default="json")
 @click.pass_context
-def dedupe_rollback(ctx: click.Context, manifest_path: Path, write: bool, output_format: str):
+def dedupe_rollback(
+    ctx: click.Context, manifest_path: Path, write: bool, confirm: bool, output_format: str
+):
     """Preview or restore a manifest, refusing changed post-apply files."""
     import json
 
     from .dedupe import rollback_manifest
     index = _index(ctx.obj["kb"])
-    rows = rollback_manifest(index.repo, json.loads(manifest_path.read_text(encoding="utf-8")), write)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if write:
+        if not confirm:
+            raise click.UsageError("--write requires --confirm")
+        file_count = len(manifest.get("files", [])) if isinstance(manifest, dict) else 0
+        if not _confirm_write(f"Rollback this manifest: restore {file_count} file(s)?"):
+            click.echo("cancelled")
+            return
+    rows = rollback_manifest(index.repo, manifest, write)
     _emit(rows, output_format, [])
     if any(not row["ok"] for row in rows):
         raise click.exceptions.Exit(1)
@@ -507,8 +527,15 @@ def graph_colors(ctx: click.Context, theme: str, output_format: str, output: Pat
 @click.option("--interactive", is_flag=True, help="Browse suggestions in a read-only TUI")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.pass_context
-def graph_groups(ctx: click.Context, limit: int, min_count: int, theme: str,
-                 output_format: str, interactive: bool, output: Path | None) -> None:
+def graph_groups(
+    ctx: click.Context,
+    limit: int,
+    min_count: int,
+    theme: str,
+    output_format: str,
+    interactive: bool,
+    output: Path | None,
+) -> None:
     """Suggest read-only Obsidian Graph View search groups."""
     config = _load_command_config(ctx)
     groups_config = config.get("graph_groups", {})
@@ -603,6 +630,20 @@ def _browse_graph_groups(rows: list[dict]) -> None:
             display = ", ".join(value) if isinstance(value, list) else str(value)
             detail.add_row(key, display)
         console.print(detail)
+
+
+def _confirm_write(prompt: str) -> bool:
+    """Ask for a destructive-operation confirmation before allowing writes."""
+    if not sys.stdin.isatty():
+        raise click.ClickException("refusing to modify files without an interactive terminal")
+    try:
+        from rich.prompt import Confirm
+    except ImportError as exc:
+        raise click.ClickException(
+            "interactive confirmation requires Rich; install with "
+            "`pip install kb-tool[interactive]`"
+        ) from exc
+    return Confirm.ask(prompt, default=False)
 
 
 @dedupe.command("merge-draft")
