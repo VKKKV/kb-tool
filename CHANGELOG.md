@@ -43,12 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.kb-tool.yaml` configuration for `graph-colors` and `graph-groups`, with CLI overrides
+- GitHub Actions test matrix for Python 3.11–3.13
+- Development YAML typing stubs and scoped mypy checks in CI
+
 ### Planned
 
-- Test suite with pytest
-- Type checking with mypy
-- Linting with ruff
-- CI/CD with GitHub Actions
 - Interactive mode with rich
 - Export to various formats (JSON, CSV, Markdown)
 - Plugin system for custom analyzers
