@@ -49,6 +49,9 @@ Issues = "https://github.com/VKKKV/kb-tool/issues"
 kb = "kb.cli:main"
 kb-tool = "kb.cli:main"
 
+[project.entry-points."kb_tool.analyzers"]
+kb-link-stats = "kb.builtin_analyzers:link_stats"
+
 [tool.setuptools.packages.find]
 include = ["kb*"]
 

@@ -19,6 +19,8 @@ Usage:
     kb stats
     kb [--config PATH] graph-colors [--output PATH]
     kb graph-groups [--limit 50] [--min-count 1] [--theme default|nord|catppuccin] [--format text|json|jsonl]
+    kb plugins
+    kb analyze NAME
 """
 
 from __future__ import annotations
@@ -680,6 +682,36 @@ def stats(ctx: click.Context):
     print("\n按顶层目录:")
     for d, c in top_dirs.most_common():
         print(f"  {d}: {c}")
+
+
+@cli.command("plugins")
+def list_plugins_command() -> None:
+    """List installed read-only analyzer plugins."""
+    import json
+
+    from .plugins import AnalyzerPluginError, list_analyzers
+
+    try:
+        rows = list_analyzers()
+    except AnalyzerPluginError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+@cli.command("analyze")
+@click.argument("name")
+@click.pass_context
+def analyze_plugin(ctx: click.Context, name: str) -> None:
+    """Run one installed analyzer plugin against the selected knowledge base."""
+    import json
+
+    from .plugins import AnalyzerPluginError, run_analyzer
+
+    try:
+        result = run_analyzer(name, _index(ctx.obj["kb"]))
+    except AnalyzerPluginError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
 
 
 def main():

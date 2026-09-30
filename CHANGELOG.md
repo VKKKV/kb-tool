@@ -50,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions test matrix for Python 3.11–3.13
 - Development YAML typing stubs and scoped mypy checks in CI
 - Optional Rich interactive browser for graph-group suggestions
+- Entry-point analyzer registry, plugin listing, and JSON result execution
 
 ### Planned
 
-- Plugin system for custom analyzers
+- Expand the analyzer plugin API with richer metadata and lifecycle contracts

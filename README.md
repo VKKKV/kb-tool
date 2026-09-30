@@ -116,6 +116,31 @@ kb graph-groups --interactive
 Select a group by number to inspect its query and member paths; enter `0` to exit.
 The browser is read-only and cannot be combined with `--format` or `--output`.
 
+### Analyzer plugin entry points
+
+Third-party packages may register read-only analyzers with the standard Python
+entry-point group `kb_tool.analyzers`. Each entry point name is the analyzer
+name and must resolve to a callable accepting a `kb.core.FileIndex` and
+returning a JSON-serializable value. Run `kb plugins` to list installed
+analyzers and `kb analyze NAME` to execute one. Analyzer code is imported only
+when selected; duplicate names, load/run failures, and non-JSON results are
+reported as errors.
+
+Example plugin package metadata:
+
+```toml
+[project.entry-points."kb_tool.analyzers"]
+my-analyzer = "my_package.analyzers:analyze"
+```
+
+```python
+def analyze(index):
+    return {"markdown_files": len(index.md_files)}
+```
+
+The built-in `kb-link-stats` analyzer demonstrates this contract. Plugins run
+with the same permissions as the `kb` process; install only trusted packages.
+
 # Unix-style graph retrieval: independent of qmd or any other search engine
 kb neighbors path/to/note.md --depth 1 --direction both --json
 printf '[{"path":"path/to/note.md","score":0.9}]' \
